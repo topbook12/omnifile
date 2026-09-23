@@ -52,3 +52,14 @@ prompt
 server.log
 # Skills directory
 /skills/
+# --- OmniFile repo hygiene: keep sandbox/infra files out of the public repo ---
+/.zscripts/
+/db/
+/tool-results/
+/download/
+/tests/
+/examples/
+/mini-services/
+/Caddyfile
+/worklog.md
+.DS_Store
