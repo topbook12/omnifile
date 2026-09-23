@@ -1,18 +1,25 @@
 'use client'
 
 /**
- * Image editor — Task 2-c.
+ * Image editor — Task 2-c (canvas editing) + Task 2-b (advanced tools).
  * Canvas editing: rotate / flip / crop / resize (destructive, undoable)
  * + non-destructive color filters baked in at save/export time (Web Worker).
+ * Task 2-b adds: compress-to-target-size, format conversion and background
+ * tools (remove / colour / image), all via pure Canvas APIs (image-tools.ts).
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import {
   Crop,
+  Eraser,
   FlipHorizontal2,
   FlipVertical2,
+  ImagePlus,
   Loader2,
+  Minimize2,
+  Pipette,
   RefreshCw,
+  Repeat,
   RotateCcw,
   RotateCw,
   Save,
@@ -27,6 +34,7 @@ import { Card } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -37,7 +45,17 @@ import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
+import { formatBytes } from '@/lib/format'
+import { openFilesWithInput } from '@/lib/fsa'
 import { useI18n } from '@/lib/i18n'
+import {
+  blobToCanvas,
+  compressToTarget,
+  decodeImageFile,
+  flattenOnColour,
+  flattenOnImage,
+  removeBackground,
+} from '@/lib/image-tools'
 import type { ViewerEditorProps } from '@/lib/viewer-types'
 
 /* ---------------------------------- consts --------------------------------- */
@@ -46,6 +64,32 @@ const UNDO_LIMIT = 15
 const MIN_CROP_PX = 8 // minimum crop size in image pixels
 const MIN_DIM = 16
 const MAX_DIM = 8000
+
+/* ------------------------- task 2-b: advanced tools ------------------------ */
+
+/** Pause long enough for the busy spinner to paint before heavy work. */
+const yieldFrame = (): Promise<void> =>
+  new Promise((resolve) => window.setTimeout(resolve, 40))
+
+/** Transparency checkerboard (visible in light & dark themes). */
+const CHECKERBOARD = 'repeating-conic-gradient(#d4d4d4 0% 25%, #ffffff 0% 50%)'
+
+const BG_COLOURS = ['#ffffff', '#000000', '#0d9488', '#ef4444', '#3b82f6', '#eab308', '#22c55e']
+
+type CompressMime = 'image/jpeg' | 'image/webp'
+
+const COMPRESS_MIMES: { mime: CompressMime; labelKey: string }[] = [
+  { mime: 'image/jpeg', labelKey: 'imgFormatJpeg' },
+  { mime: 'image/webp', labelKey: 'imgFormatWebp' },
+]
+
+const CONVERT_FORMATS: { mime: 'image/jpeg' | 'image/png' | 'image/webp'; labelKey: string }[] = [
+  { mime: 'image/jpeg', labelKey: 'imgFormatJpeg' },
+  { mime: 'image/png', labelKey: 'imgFormatPng' },
+  { mime: 'image/webp', labelKey: 'imgFormatWebp' },
+]
+
+const SCALE_PCTS = [25, 50, 75, 100, 200]
 
 interface Filters {
   brightness: number // 50–150, default 100
@@ -143,7 +187,7 @@ function clampDim(n: number): number {
 /* --------------------------------- component -------------------------------- */
 
 export default function ImageEditor({ file, blob, dirty, onDirtyChange, onSave }: ViewerEditorProps) {
-  const { t } = useI18n()
+  const { t, tf } = useI18n()
 
   /* ------------------------------- refs / state ------------------------------ */
   const workingRef = useRef<HTMLCanvasElement | null>(null)
@@ -157,6 +201,7 @@ export default function ImageEditor({ file, blob, dirty, onDirtyChange, onSave }
   const dirtyMirrorRef = useRef(dirty)
   const onDirtyRef = useRef(onDirtyChange)
   const loadedIdRef = useRef<string | null>(null)
+  const colourTimerRef = useRef<number | null>(null)
 
   const [decoding, setDecoding] = useState(true)
   const [decodeError, setDecodeError] = useState(false)
@@ -174,6 +219,20 @@ export default function ImageEditor({ file, blob, dirty, onDirtyChange, onSave }
   const [keepAspect, setKeepAspect] = useState(true)
   const [stageSize, setStageSize] = useState({ w: 0, h: 0 })
   const [dispSize, setDispSize] = useState({ w: 0, h: 0 })
+
+  /* --------------------- task 2-b: advanced-tool state ---------------------- */
+  const [busy, setBusy] = useState(false)
+  const [compressOpen, setCompressOpen] = useState(false)
+  const [compressing, setCompressing] = useState(false)
+  const [sizeValue, setSizeValue] = useState('200')
+  const [sizeUnit, setSizeUnit] = useState<'KB' | 'MB'>('KB')
+  const [compressMime, setCompressMime] = useState<CompressMime>('image/jpeg')
+  const [convertOpen, setConvertOpen] = useState(false)
+  const [formatOverride, setFormatOverride] = useState<string | null>(null)
+  const [qualityOverride, setQualityOverride] = useState<number | null>(null)
+  const [bgOpen, setBgOpen] = useState(false)
+  const [bgTolerance, setBgTolerance] = useState(28)
+  const [customColour, setCustomColour] = useState('#ffffff')
 
   /* ------------------------------ dirty plumbing ----------------------------- */
   useEffect(() => {
@@ -224,6 +283,8 @@ export default function ImageEditor({ file, blob, dirty, onDirtyChange, onSave }
         geomDirtyRef.current = false
         setStackDepth(0)
         setFilters({ ...DEFAULT_FILTERS })
+        setFormatOverride(null)
+        setQualityOverride(null)
         setCropMode(false)
         setCropRect(null)
         setDispSize({ w: 0, h: 0 })
@@ -243,6 +304,14 @@ export default function ImageEditor({ file, blob, dirty, onDirtyChange, onSave }
       cancelled = true
     }
   }, [file.id, blob, applyDirty])
+
+  /* ------------------------- colour-input timer cleanup ----------------------- */
+  useEffect(
+    () => () => {
+      if (colourTimerRef.current !== null) window.clearTimeout(colourTimerRef.current)
+    },
+    []
+  )
 
   /* --------------------------- worker (lazy + cleanup) ------------------------ */
   useEffect(
@@ -299,8 +368,15 @@ export default function ImageEditor({ file, blob, dirty, onDirtyChange, onSave }
   const exportImage = async (): Promise<Blob> => {
     const working = workingRef.current
     if (!working) throw new Error('nothing to export')
-    const { type, quality } = exportFormat(file.mime)
+    const fallback = exportFormat(file.mime)
+    const type = formatOverride ?? fallback.type
+    const quality = formatOverride
+      ? (qualityOverride ?? (type === 'image/png' ? undefined : 0.92))
+      : fallback.quality
     const filter = buildFilterString(filters)
+
+    // JPEG cannot store alpha — flatten onto white first (no-op for opaque pixels).
+    const staged = type === 'image/jpeg' ? flattenOnColour(working, '#ffffff') : working
 
     const canWorker =
       typeof Worker !== 'undefined' &&
@@ -309,7 +385,7 @@ export default function ImageEditor({ file, blob, dirty, onDirtyChange, onSave }
 
     if (canWorker) {
       try {
-        const bitmap = await createImageBitmap(working)
+        const bitmap = await createImageBitmap(staged)
         const worker = getWorker()
         if (!worker) throw new Error('worker unavailable')
         return await runWorkerExport(worker, bitmap, filter, type, quality)
@@ -320,7 +396,7 @@ export default function ImageEditor({ file, blob, dirty, onDirtyChange, onSave }
       }
     }
 
-    const out = await new Promise<Blob | null>((resolve) => working.toBlob(resolve, type, quality))
+    const out = await new Promise<Blob | null>((resolve) => staged.toBlob(resolve, type, quality))
     if (!out) throw new Error('main-thread export failed')
     return out
   }
@@ -425,6 +501,8 @@ export default function ImageEditor({ file, blob, dirty, onDirtyChange, onSave }
     geomDirtyRef.current = false
     setStackDepth(0)
     setFilters({ ...DEFAULT_FILTERS })
+    setFormatOverride(null)
+    setQualityOverride(null)
     setCropMode(false)
     setCropRect(null)
     applyDirty(false)
@@ -618,6 +696,142 @@ export default function ImageEditor({ file, blob, dirty, onDirtyChange, onSave }
     setResizeOpen(false)
   }
 
+  /** Quick-scale helper: preset the W/H fields from a percentage of the image. */
+  const applyScalePct = (pct: number) => {
+    const working = workingRef.current
+    if (!working) return
+    const w = clampDim(Math.round((working.width * pct) / 100))
+    const h =
+      keepAspect && resizeRatio > 0
+        ? clampDim(w / resizeRatio)
+        : clampDim(Math.round((working.height * pct) / 100))
+    setResizeW(String(w))
+    setResizeH(String(h))
+  }
+
+  /* ------------------------- task 2-b: advanced tools ------------------------- */
+  const activeMime = formatOverride ?? exportFormat(file.mime).type
+
+  /** Pure re-encode: pixels stay untouched, the export format/quality changes. */
+  const convertTo = (mime: 'image/jpeg' | 'image/png' | 'image/webp') => {
+    if (busy || compressing) return
+    if (activeMime === mime) return
+    setFormatOverride(mime)
+    setQualityOverride(mime === 'image/png' ? null : 0.92)
+    applyDirty(true)
+  }
+
+  const applyCompress = async () => {
+    const working = workingRef.current
+    if (!working || busy || compressing) return
+    const sizeNum = Number(sizeValue)
+    if (!Number.isFinite(sizeNum) || sizeNum <= 0) return
+    const targetBytes = Math.max(
+      1024, // never ask for less than 1 KB
+      Math.round(sizeNum * (sizeUnit === 'KB' ? 1024 : 1024 * 1024))
+    )
+    const mime = compressMime
+    const opFileId = file.id
+
+    setCompressing(true)
+    setBusy(true)
+    try {
+      await yieldFrame()
+      if (loadedIdRef.current !== opFileId) return
+      // JPEG has no alpha channel — composite onto white before measuring.
+      const srcCanvas = mime === 'image/jpeg' ? flattenOnColour(working, '#ffffff') : working
+      const result = await compressToTarget(srcCanvas, targetBytes, mime)
+      if (loadedIdRef.current !== opFileId) return
+      const decoded = await blobToCanvas(result.blob)
+      if (loadedIdRef.current !== opFileId) return
+
+      setFormatOverride(mime)
+      setQualityOverride(result.quality)
+      runGeometry(() => decoded)
+      if (result.blob.size <= targetBytes) {
+        toast.success(tf('imgCompressedTo', { size: formatBytes(result.blob.size) }))
+      } else {
+        toast.info(t('imgCompressFailed'))
+      }
+      setCompressOpen(false)
+    } catch {
+      toast.error(t('errGeneric'))
+    } finally {
+      setCompressing(false)
+      setBusy(false)
+    }
+  }
+
+  const applyRemoveBg = async () => {
+    if (busy) return
+    const opFileId = file.id
+    setBusy(true)
+    try {
+      await yieldFrame()
+      if (loadedIdRef.current !== opFileId) return
+      runGeometry((src) => {
+        const ctx = src.getContext('2d', { willReadFrequently: true })
+        if (!ctx) return null
+        const imageData = ctx.getImageData(0, 0, src.width, src.height)
+        const cleaned = removeBackground(imageData, bgTolerance)
+        const out = document.createElement('canvas')
+        out.width = cleaned.width
+        out.height = cleaned.height
+        const octx = out.getContext('2d')
+        if (!octx) return null
+        octx.putImageData(cleaned, 0, 0)
+        return out
+      })
+      toast.success(t('imgBgApplied'))
+    } catch {
+      toast.error(t('errGeneric'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const applyBgColour = (colour: string) => {
+    if (busy) return
+    runGeometry((src) => flattenOnColour(src, colour))
+    toast.success(t('imgBgApplied'))
+  }
+
+  /** Native colour input fires continuously while dragging — debounce applies. */
+  const onCustomColour = (value: string) => {
+    setCustomColour(value)
+    if (colourTimerRef.current !== null) window.clearTimeout(colourTimerRef.current)
+    colourTimerRef.current = window.setTimeout(() => {
+      colourTimerRef.current = null
+      applyBgColour(value)
+    }, 350)
+  }
+
+  const applyBgImage = async () => {
+    if (busy) return
+    const opFileId = file.id
+    setBusy(true)
+    try {
+      const [picked] = await openFilesWithInput('image/*', false)
+      if (!picked) return
+      if (loadedIdRef.current !== opFileId) return
+      const background = await decodeImageFile(picked)
+      if (loadedIdRef.current !== opFileId) return
+      runGeometry((src) => flattenOnImage(src, background))
+      if (!(background instanceof HTMLImageElement)) {
+        try {
+          background.close()
+        } catch {
+          /* ignore */
+        }
+      }
+      toast.success(t('imgBgApplied'))
+    } catch {
+      toast.error(t('errGeneric'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   /* --------------------------------- renders --------------------------------- */
   if (decodeError) {
     return (
@@ -641,7 +855,7 @@ export default function ImageEditor({ file, blob, dirty, onDirtyChange, onSave }
   const hasSelection = !!cropRect && cropRect.w > 0 && cropRect.h > 0
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="relative flex h-full min-h-0 flex-col">
       {/* Toolbar — geometry */}
       <div className="no-touch-callout flex shrink-0 items-center gap-1.5 overflow-x-auto border-b bg-background/95 px-2 py-2">
         <Button
@@ -703,6 +917,36 @@ export default function ImageEditor({ file, blob, dirty, onDirtyChange, onSave }
           onClick={openResize}
         >
           <Scaling />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-10 w-10 shrink-0"
+          title={t('imgCompress')}
+          aria-label={t('imgCompress')}
+          onClick={() => setCompressOpen(true)}
+        >
+          <Minimize2 />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-10 w-10 shrink-0"
+          title={t('imgFormat')}
+          aria-label={t('imgFormat')}
+          onClick={() => setConvertOpen(true)}
+        >
+          <Repeat />
+        </Button>
+        <Button
+          variant={bgOpen ? 'secondary' : 'ghost'}
+          size="icon"
+          className="h-10 w-10 shrink-0"
+          title={t('imgBackground')}
+          aria-label={t('imgBackground')}
+          onClick={() => setBgOpen((o) => !o)}
+        >
+          <Eraser />
         </Button>
         <Separator orientation="vertical" className="h-6 shrink-0" />
         <Button
@@ -797,6 +1041,93 @@ export default function ImageEditor({ file, blob, dirty, onDirtyChange, onSave }
         </div>
       )}
 
+      {/* Background tools panel (Task 2-b) */}
+      {bgOpen && (
+        <div className="shrink-0 space-y-3 border-b bg-card px-3 py-3">
+          <p className="text-xs text-muted-foreground">{t('imgBgRemoveHint')}</p>
+          <div className="flex items-center justify-between gap-3">
+            <Label className="shrink-0 text-xs text-muted-foreground">{t('imgBgTolerance')}</Label>
+            <span className="text-xs tabular-nums text-muted-foreground">{bgTolerance}</span>
+          </div>
+          <Slider
+            min={0}
+            max={100}
+            step={1}
+            value={[bgTolerance]}
+            onValueChange={(value) =>
+              setBgTolerance(Array.isArray(value) && value.length > 0 ? value[0] : bgTolerance)
+            }
+            aria-label={t('imgBgTolerance')}
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              className="h-10 gap-2"
+              onClick={applyRemoveBg}
+              disabled={busy}
+            >
+              <Eraser className="h-4 w-4" />
+              {t('imgBgRemove')}
+            </Button>
+            <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span
+                aria-hidden
+                className="h-3.5 w-3.5 rounded-sm border border-border"
+                style={{ backgroundImage: CHECKERBOARD, backgroundSize: '8px 8px' }}
+              />
+              {t('imgBgTransparent')}
+            </span>
+          </div>
+          <Separator />
+          <Label className="text-xs text-muted-foreground">{t('imgBgColor')}</Label>
+          <div className="flex flex-wrap items-center gap-2">
+            {BG_COLOURS.map((colour) => (
+              <Button
+                key={colour}
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 rounded-full border-border"
+                style={{ backgroundColor: colour }}
+                aria-label={colour}
+                title={colour}
+                disabled={busy}
+                onClick={() => applyBgColour(colour)}
+              />
+            ))}
+            <label
+              className="relative inline-flex h-9 w-9 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-dashed border-border"
+              title={t('imgBgColor')}
+            >
+              <Pipette className="h-4 w-4 text-muted-foreground" />
+              <input
+                type="color"
+                value={customColour}
+                aria-label={t('imgBgColor')}
+                disabled={busy}
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                onChange={(e) => onCustomColour(e.target.value)}
+              />
+            </label>
+          </div>
+          <Separator />
+          <Label className="text-xs text-muted-foreground">{t('imgBgImage')}</Label>
+          <div>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="h-10 gap-2"
+              onClick={applyBgImage}
+              disabled={busy}
+            >
+              <ImagePlus className="h-4 w-4" />
+              {t('imgBgPickImage')}
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Canvas stage */}
       <div
         ref={stageRef}
@@ -804,7 +1135,10 @@ export default function ImageEditor({ file, blob, dirty, onDirtyChange, onSave }
       >
         <div className="flex flex-col items-center gap-2">
           {cropMode && <p className="text-xs text-muted-foreground">{t('imgCropHint')}</p>}
-          <div className="relative inline-block overflow-hidden rounded-sm">
+          <div
+            className="relative inline-block overflow-hidden rounded-sm"
+            style={{ backgroundImage: CHECKERBOARD, backgroundSize: '12px 12px' }}
+          >
             {dispSize.w > 0 && (
               <canvas
                 ref={previewRef}
@@ -891,6 +1225,23 @@ export default function ImageEditor({ file, blob, dirty, onDirtyChange, onSave }
               {t('imgKeepAspect')}
             </Label>
           </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">{t('imgResizePct')}</Label>
+            <div className="flex flex-wrap gap-1.5">
+              {SCALE_PCTS.map((pct) => (
+                <Button
+                  key={pct}
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="h-10 min-w-12 rounded-full px-3 tabular-nums"
+                  onClick={() => applyScalePct(pct)}
+                >
+                  {pct}%
+                </Button>
+              ))}
+            </div>
+          </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setResizeOpen(false)}>
               {t('cancel')}
@@ -899,6 +1250,139 @@ export default function ImageEditor({ file, blob, dirty, onDirtyChange, onSave }
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Format convert dialog (Task 2-b) — tap a format to re-encode */}
+      <Dialog
+        open={convertOpen}
+        onOpenChange={(open) => {
+          if (!open) setConvertOpen(false)
+        }}
+      >
+        <DialogContent className="sm:max-w-xs" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>{t('imgFormat')}</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-3 gap-1.5">
+            {CONVERT_FORMATS.map((format) => (
+              <Button
+                key={format.mime}
+                type="button"
+                variant={activeMime === format.mime ? 'default' : 'secondary'}
+                className="h-11 rounded-full"
+                aria-pressed={activeMime === format.mime}
+                disabled={busy || compressing}
+                onClick={() => convertTo(format.mime)}
+              >
+                {t(format.labelKey)}
+              </Button>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setConvertOpen(false)}>
+              {t('close')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Compress-to-target dialog (Task 2-b) */}
+      <Dialog
+        open={compressOpen}
+        onOpenChange={(open) => {
+          if (!open) setCompressOpen(false)
+        }}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t('imgCompressTitle')}</DialogTitle>
+            <DialogDescription>{t('imgTargetSizeDesc')}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <Label htmlFor="img-target-size">{t('targetSize')}</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="img-target-size"
+                type="number"
+                inputMode="decimal"
+                min={1}
+                className="h-10 flex-1"
+                value={sizeValue}
+                onChange={(e) => setSizeValue(e.target.value)}
+              />
+              <div className="flex gap-1">
+                <Button
+                  type="button"
+                  variant={sizeUnit === 'KB' ? 'default' : 'outline'}
+                  size="sm"
+                  className="h-10 px-3"
+                  aria-pressed={sizeUnit === 'KB'}
+                  onClick={() => setSizeUnit('KB')}
+                >
+                  {t('sizeKB')}
+                </Button>
+                <Button
+                  type="button"
+                  variant={sizeUnit === 'MB' ? 'default' : 'outline'}
+                  size="sm"
+                  className="h-10 px-3"
+                  aria-pressed={sizeUnit === 'MB'}
+                  onClick={() => setSizeUnit('MB')}
+                >
+                  {t('sizeMB')}
+                </Button>
+              </div>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t('imgFormat')}</Label>
+            <div className="flex gap-1.5">
+              {COMPRESS_MIMES.map((format) => (
+                <Button
+                  key={format.mime}
+                  type="button"
+                  variant={compressMime === format.mime ? 'default' : 'secondary'}
+                  className="h-10 flex-1 rounded-full"
+                  aria-pressed={compressMime === format.mime}
+                  onClick={() => setCompressMime(format.mime)}
+                >
+                  {t(format.labelKey)}
+                </Button>
+              ))}
+            </div>
+            {/* PNG is lossless and cannot be size-targeted, so it is not offered here. */}
+          </div>
+          {compressing && (
+            <p className="flex items-center gap-2 text-xs text-muted-foreground" role="status">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              {t('imgEstimating')}
+            </p>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setCompressOpen(false)} disabled={compressing}>
+              {t('cancel')}
+            </Button>
+            <Button
+              onClick={applyCompress}
+              disabled={compressing || busy || !(Number(sizeValue) > 0)}
+            >
+              {compressing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {t('apply')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Busy overlay (Task 2-b) — blocks interaction during heavy operations */}
+      {busy && (
+        <div
+          className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-2 bg-background/70 backdrop-blur-[2px]"
+          role="status"
+          aria-live="polite"
+        >
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          <span className="text-xs text-muted-foreground">{t('imgProcessing')}</span>
+        </div>
+      )}
     </div>
   )
 }

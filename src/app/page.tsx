@@ -233,7 +233,8 @@ export default function HomePage() {
         setOpenBlob(newBlob)
         setDirty(false)
         await refresh()
-        toast.success(t('tSaved'))
+        // Success toast is shown by the calling editor (single-toast policy);
+        // failures are surfaced here as the parent safety net.
       } catch {
         toast.error(t('tSaveFailed'))
       }

@@ -6,13 +6,42 @@
  * edit memory (edits survive sheet switches), row/column operations and
  * save back into the local library. 100% client-side.
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { toast } from 'sonner'
-import { Columns3, FileSpreadsheet, Plus, Save, SquareMinus, Trash2 } from 'lucide-react'
+import {
+  ArrowUpDown,
+  Braces,
+  Columns3,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  Plus,
+  Replace,
+  Save,
+  SquareMinus,
+  Trash2,
+} from 'lucide-react'
 
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -22,6 +51,7 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getExt } from '@/lib/file-types'
+import { downloadBlob } from '@/lib/fsa'
 import { useI18n } from '@/lib/i18n'
 import type { ViewerEditorProps } from '@/lib/viewer-types'
 import { cn } from '@/lib/utils'
@@ -125,6 +155,35 @@ function matrixToAoa(rows: string[][]): (string | number)[][] {
   return rows.map((row) => row.map(coerceCell))
 }
 
+/** Excel sheet-name constraints (≤ 31 chars, no \\ / ? * [ ] :). */
+function sanitizeSheetName(name: string): string {
+  const clean = name.replace(/[\\/?*[\]:]/g, ' ').trim().slice(0, 31)
+  return clean === '' ? 'Sheet1' : clean
+}
+
+/** Filename without its final extension (dotfiles like .gitignore kept). */
+function baseFileName(name: string): string {
+  const dot = name.lastIndexOf('.')
+  return dot > 0 ? name.slice(0, dot) : name
+}
+
+/** True when every non-empty value in the list parses as a finite float. */
+function isNumericColumn(values: string[]): boolean {
+  let any = false
+  for (const v of values) {
+    const s = v.trim()
+    if (s === '') continue
+    any = true
+    if (!Number.isFinite(Number(s))) return false
+  }
+  return any
+}
+
+/** Escape a literal string for safe use inside a RegExp. */
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 /* ------------------------------------------------------------------ */
 /* Component                                                           */
 /* ------------------------------------------------------------------ */
@@ -146,6 +205,13 @@ export default function SheetEditor({
   const [active, setActive] = useState<CellPos | null>(null)
   const [editing, setEditing] = useState<CellPos | null>(null)
   const [saving, setSaving] = useState(false)
+
+  /* Advanced tools: sort + find & replace dialogs. */
+  const [sortOpen, setSortOpen] = useState(false)
+  const [sortCol, setSortCol] = useState('0')
+  const [frOpen, setFrOpen] = useState(false)
+  const [findText, setFindText] = useState('')
+  const [replaceText, setReplaceText] = useState('')
 
   /* Mutable session state lives in refs so callbacks stay stable. */
   const wbRef = useRef<XLSX.WorkBook | null>(null)
@@ -361,6 +427,143 @@ export default function SheetEditor({
     markMutated()
   }, [applyActive, applyEditing, applyRows, currentWidth, markMutated])
 
+  /* ---------------------------------------------------------------- */
+  /* Advanced tools: sort / find & replace / export                    */
+  /* ---------------------------------------------------------------- */
+
+  const openSort = useCallback(() => {
+    const cols = rowsRef.current[0]?.length ?? 0
+    if (Number(sortCol) >= cols) setSortCol('0')
+    setSortOpen(true)
+  }, [sortCol])
+
+  /**
+   * Sort DATA rows (row 0 = header stays put) by the picked column.
+   * Numeric-aware: if every non-empty value in the column parses as a finite
+   * float → numeric compare, else localeCompare. Empty cells sink to the
+   * bottom regardless of direction. Operates on the FULL matrix (refs), not
+   * just the visible window.
+   */
+  const applySort = useCallback(
+    (dir: 'asc' | 'desc') => {
+      const col = Number(sortCol)
+      const cur = rowsRef.current
+      if (cur.length < 2 || !Number.isInteger(col) || col < 0) return
+      const header = cur[0]
+      const data = cur.slice(1)
+      const numeric = isNumericColumn(data.map((row) => row[col] ?? ''))
+      const cmp = numeric
+        ? (a: string, b: string) => Number(a) - Number(b)
+        : (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true })
+      const withVal: { row: string[]; v: string }[] = []
+      const empties: string[][] = []
+      for (const row of data) {
+        const v = row[col] ?? ''
+        if (v.trim() === '') empties.push(row)
+        else withVal.push({ row, v })
+      }
+      withVal.sort((a, b) => (dir === 'asc' ? cmp(a.v, b.v) : cmp(b.v, a.v)))
+      applyRows([header, ...withVal.map((e) => e.row), ...empties])
+      applyActive(null)
+      applyEditing(null)
+      markMutated()
+      setSortOpen(false)
+      toast.success(t('sheetSorted'))
+    },
+    [applyActive, applyEditing, applyRows, markMutated, sortCol, t]
+  )
+
+  /** Live count of cells containing the needle (case-insensitive). */
+  const frCount = useMemo(() => {
+    if (!frOpen) return 0
+    const needle = findText.toLowerCase()
+    if (needle === '') return 0
+    let n = 0
+    for (const row of rows) {
+      for (const cell of row) {
+        if (cell.toLowerCase().includes(needle)) n++
+      }
+    }
+    return n
+  }, [findText, frOpen, rows])
+
+  /** Replace all matches across every cell (case-insensitive), count cells. */
+  const replaceAll = useCallback(() => {
+    const needle = findText.toLowerCase()
+    if (needle === '') return
+    const re = new RegExp(escapeRegExp(findText), 'gi')
+    let n = 0
+    const next = rowsRef.current.map((row) => {
+      let changed = false
+      const out = row.map((cell) => {
+        if (!cell.toLowerCase().includes(needle)) return cell
+        changed = true
+        // Replacer fn (not "$1"-string) keeps '$' in the replacement literal.
+        return cell.replace(re, () => replaceText)
+      })
+      if (changed) n++
+      return changed ? out : row
+    })
+    if (n === 0) return
+    applyRows(next)
+    markMutated()
+    setFrOpen(false)
+    toast.success(tf('sheetReplaced', { n }))
+  }, [applyRows, findText, markMutated, replaceText, tf])
+
+  const baseName = useMemo(() => baseFileName(file.name), [file.name])
+
+  const exportCsv = useCallback(() => {
+    try {
+      const ws = XLSX.utils.aoa_to_sheet(matrixToAoa(rowsRef.current))
+      // BOM so Excel opens UTF-8 (Bengali etc.) correctly on Windows.
+      const csv = '\uFEFF' + XLSX.utils.sheet_to_csv(ws)
+      downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), `${baseName}.csv`)
+      toast.success(t('tExportDone'))
+    } catch {
+      toast.error(t('errGeneric'))
+    }
+  }, [baseName, t])
+
+  const exportXlsx = useCallback(() => {
+    try {
+      const ws = XLSX.utils.aoa_to_sheet(matrixToAoa(rowsRef.current))
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, sanitizeSheetName(activeNameRef.current))
+      const data = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+      downloadBlob(
+        new Blob([data], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        }),
+        `${baseName}.xlsx`
+      )
+      toast.success(t('tExportDone'))
+    } catch {
+      toast.error(t('errGeneric'))
+    }
+  }, [baseName, t])
+
+  const exportJson = useCallback(() => {
+    try {
+      const all = rowsRef.current
+      const header = all[0] ?? []
+      const objs = all.slice(1).map((row) => {
+        const o: Record<string, string> = {}
+        header.forEach((h, i) => {
+          o[h.trim() === '' ? colLabel(i) : h] = row[i] ?? ''
+        })
+        return o
+      })
+      downloadBlob(
+        new Blob([JSON.stringify(objs, null, 2)], { type: 'application/json;charset=utf-8' }),
+        `${baseName}.json`
+      )
+      toast.success(t('tExportDone'))
+    } catch {
+      toast.error(t('errGeneric'))
+    }
+  }, [baseName, t])
+
   /* --- save: csv/tsv as delimited text, excel via the original workbook --- */
   const handleSave = useCallback(async () => {
     if (!dirty || savingRef.current) return
@@ -450,6 +653,9 @@ export default function SheetEditor({
   const renderCols = Math.min(totalCols, MAX_RENDER_COLS)
   const hiddenCols = totalCols - renderCols
   const shownRows = rows.slice(0, visibleRows)
+  /* Sort dialog lists up to 256 columns (bounds the DOM; sorting itself
+     always operates on the full matrix). */
+  const sortColCount = Math.min(totalCols, 256)
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -519,6 +725,59 @@ export default function SheetEditor({
         >
           <SquareMinus className="size-4 shrink-0" />
         </Button>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-10 w-10 shrink-0 sm:w-auto sm:px-3"
+          title={t('sheetSort')}
+          aria-label={t('sheetSort')}
+          onClick={openSort}
+        >
+          <ArrowUpDown className="size-4 shrink-0" />
+          <span className="hidden text-xs sm:inline">{t('sheetSort')}</span>
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-10 w-10 shrink-0 sm:w-auto sm:px-3"
+          title={t('sheetFindReplace')}
+          aria-label={t('sheetFindReplace')}
+          onClick={() => setFrOpen(true)}
+        >
+          <Replace className="size-4 shrink-0" />
+          <span className="hidden text-xs sm:inline">{t('sheetFindReplace')}</span>
+        </Button>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 shrink-0 sm:w-auto sm:px-3"
+              title={t('download')}
+              aria-label={t('download')}
+            >
+              <Download className="size-4 shrink-0" />
+              <span className="hidden text-xs sm:inline">{t('download')}</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>{t('tools')}</DropdownMenuLabel>
+            <DropdownMenuItem onClick={exportCsv} className="gap-2">
+              <FileText className="size-4" aria-hidden />
+              {t('sheetExportCsv')}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={exportXlsx} className="gap-2">
+              <FileSpreadsheet className="size-4" aria-hidden />
+              {t('sheetExportXlsx')}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={exportJson} className="gap-2">
+              <Braces className="size-4" aria-hidden />
+              {t('sheetExportJson')}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <Button
           size="sm"
@@ -649,6 +908,95 @@ export default function SheetEditor({
         <span>{tf('csvCols', { n: totalCols })}</span>
         <span className="ml-auto">{t('csvEditHint')}</span>
       </div>
+
+      {/* Sort dialog */}
+      <Dialog open={sortOpen} onOpenChange={setSortOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t('sheetSort')}</DialogTitle>
+            <DialogDescription>{t('sheetSortBy')}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2.5">
+            <Label htmlFor="omnifile-sort-col">{t('sheetSortBy')}</Label>
+            <Select value={sortCol} onValueChange={setSortCol}>
+              <SelectTrigger id="omnifile-sort-col" className="h-10 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="max-h-64">
+                {Array.from({ length: sortColCount }, (_, c) => {
+                  const head = rows[0]?.[c] ?? ''
+                  return (
+                    <SelectItem key={c} value={String(c)}>
+                      {colLabel(c)}
+                      {head.trim() !== '' ? ` — ${head.slice(0, 24)}` : ''}
+                    </SelectItem>
+                  )
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              className="h-10 flex-1"
+              disabled={rows.length < 2}
+              onClick={() => applySort('asc')}
+            >
+              {t('sheetSortAsc')}
+            </Button>
+            <Button
+              variant="outline"
+              className="h-10 flex-1"
+              disabled={rows.length < 2}
+              onClick={() => applySort('desc')}
+            >
+              {t('sheetSortDesc')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Find & replace dialog */}
+      <Dialog open={frOpen} onOpenChange={setFrOpen}>
+        <DialogContent className="max-w-sm" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>{t('sheetFindReplace')}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="omnifile-fr-find">{t('sheetFindPlaceholder')}</Label>
+              <Input
+                id="omnifile-fr-find"
+                value={findText}
+                placeholder={t('sheetFindPlaceholder')}
+                onChange={(e) => setFindText(e.target.value)}
+                className="h-10"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="omnifile-fr-replace">{t('sheetReplacePlaceholder')}</Label>
+              <Input
+                id="omnifile-fr-replace"
+                value={replaceText}
+                placeholder={t('sheetReplacePlaceholder')}
+                onChange={(e) => setReplaceText(e.target.value)}
+                className="h-10"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="tabular-nums" aria-live="polite">
+                {frCount}
+              </Badge>
+              <Button
+                className="h-10 flex-1"
+                disabled={findText === '' || frCount === 0}
+                onClick={replaceAll}
+              >
+                {t('sheetReplaceAll')}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
