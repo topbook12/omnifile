@@ -1,0 +1,905 @@
+     1→'use client'
+     2→
+     3→/**
+     4→ * Image editor — Task 2-c.
+     5→ * Canvas editing: rotate / flip / crop / resize (destructive, undoable)
+     6→ * + non-destructive color filters baked in at save/export time (Web Worker).
+     7→ */
+     8→import { useCallback, useEffect, useRef, useState } from 'react'
+     9→import type { PointerEvent as ReactPointerEvent } from 'react'
+    10→import {
+    11→  Crop,
+    12→  FlipHorizontal2,
+    13→  FlipVertical2,
+    14→  Loader2,
+    15→  RefreshCw,
+    16→  RotateCcw,
+    17→  RotateCw,
+    18→  Save,
+    19→  Scaling,
+    20→  SlidersHorizontal,
+    21→  Undo2,
+    22→} from 'lucide-react'
+    23→import { toast } from 'sonner'
+    24→
+    25→import { Button } from '@/components/ui/button'
+    26→import { Card } from '@/components/ui/card'
+    27→import {
+    28→  Dialog,
+    29→  DialogContent,
+    30→  DialogFooter,
+    31→  DialogHeader,
+    32→  DialogTitle,
+    33→} from '@/components/ui/dialog'
+    34→import { Input } from '@/components/ui/input'
+    35→import { Label } from '@/components/ui/label'
+    36→import { Separator } from '@/components/ui/separator'
+    37→import { Skeleton } from '@/components/ui/skeleton'
+    38→import { Slider } from '@/components/ui/slider'
+    39→import { Switch } from '@/components/ui/switch'
+    40→import { useI18n } from '@/lib/i18n'
+    41→import type { ViewerEditorProps } from '@/lib/viewer-types'
+    42→
+    43→/* ---------------------------------- consts --------------------------------- */
+    44→
+    45→const UNDO_LIMIT = 15
+    46→const MIN_CROP_PX = 8 // minimum crop size in image pixels
+    47→const MIN_DIM = 16
+    48→const MAX_DIM = 8000
+    49→
+    50→interface Filters {
+    51→  brightness: number // 50–150, default 100
+    52→  contrast: number // 50–150, default 100
+    53→  saturation: number // 0–200, default 100
+    54→  grayscale: number // 0–100, default 0
+    55→  sepia: number // 0–100, default 0
+    56→  blur: number // 0–20 px, default 0
+    57→}
+    58→
+    59→const DEFAULT_FILTERS: Filters = {
+    60→  brightness: 100,
+    61→  contrast: 100,
+    62→  saturation: 100,
+    63→  grayscale: 0,
+    64→  sepia: 0,
+    65→  blur: 0,
+    66→}
+    67→
+    68→const SLIDERS: {
+    69→  key: keyof Filters
+    70→  labelKey: string
+    71→  min: number
+    72→  max: number
+    73→  unit: '%' | 'px'
+    74→}[] = [
+    75→  { key: 'brightness', labelKey: 'imgBrightness', min: 50, max: 150, unit: '%' },
+    76→  { key: 'contrast', labelKey: 'imgContrast', min: 50, max: 150, unit: '%' },
+    77→  { key: 'saturation', labelKey: 'imgSaturation', min: 0, max: 200, unit: '%' },
+    78→  { key: 'grayscale', labelKey: 'imgGrayscale', min: 0, max: 100, unit: '%' },
+    79→  { key: 'sepia', labelKey: 'imgSepia', min: 0, max: 100, unit: '%' },
+    80→  { key: 'blur', labelKey: 'imgBlur', min: 0, max: 20, unit: 'px' },
+    81→]
+    82→
+    83→const PRESETS: { id: string; labelKey: string; values: Filters }[] = [
+    84→  { id: 'none', labelKey: 'imgPresetNone', values: { ...DEFAULT_FILTERS } },
+    85→  { id: 'bw', labelKey: 'imgPresetBW', values: { ...DEFAULT_FILTERS, grayscale: 100 } },
+    86→  {
+    87→    id: 'vintage',
+    88→    labelKey: 'imgPresetSepia',
+    89→    values: { ...DEFAULT_FILTERS, sepia: 55, contrast: 108, brightness: 105 },
+    90→  },
+    91→  {
+    92→    id: 'vivid',
+    93→    labelKey: 'imgPresetVivid',
+    94→    values: { ...DEFAULT_FILTERS, saturation: 150, contrast: 110 },
+    95→  },
+    96→  {
+    97→    id: 'cool',
+    98→    labelKey: 'imgPresetCool',
+    99→    values: { ...DEFAULT_FILTERS, saturation: 115, brightness: 106 },
+   100→  },
+   101→  {
+   102→    id: 'warm',
+   103→    labelKey: 'imgPresetWarm',
+   104→    values: { ...DEFAULT_FILTERS, sepia: 28, saturation: 125 },
+   105→  },
+   106→]
+   107→
+   108→function filtersEqual(a: Filters, b: Filters): boolean {
+   109→  return (
+   110→    a.brightness === b.brightness &&
+   111→    a.contrast === b.contrast &&
+   112→    a.saturation === b.saturation &&
+   113→    a.grayscale === b.grayscale &&
+   114→    a.sepia === b.sepia &&
+   115→    a.blur === b.blur
+   116→  )
+   117→}
+   118→
+   119→/** CSS filter string from slider values; only non-default parts, '' if all default. */
+   120→function buildFilterString(f: Filters): string {
+   121→  const parts: string[] = []
+   122→  if (f.brightness !== 100) parts.push(`brightness(${f.brightness}%)`)
+   123→  if (f.contrast !== 100) parts.push(`contrast(${f.contrast}%)`)
+   124→  if (f.saturation !== 100) parts.push(`saturate(${f.saturation}%)`)
+   125→  if (f.grayscale !== 0) parts.push(`grayscale(${f.grayscale}%)`)
+   126→  if (f.sepia !== 0) parts.push(`sepia(${f.sepia}%)`)
+   127→  if (f.blur !== 0) parts.push(`blur(${f.blur}px)`)
+   128→  return parts.join(' ')
+   129→}
+   130→
+   131→/** jpeg → jpeg 0.92, webp → webp 0.92, everything else (incl. gif/avif/heic) → PNG. */
+   132→function exportFormat(mime: string): { type: string; quality?: number } {
+   133→  if (mime === 'image/jpeg') return { type: 'image/jpeg', quality: 0.92 }
+   134→  if (mime === 'image/webp') return { type: 'image/webp', quality: 0.92 }
+   135→  return { type: 'image/png' }
+   136→}
+   137→
+   138→function clampDim(n: number): number {
+   139→  const v = Number.isFinite(n) ? Math.round(n) : MIN_DIM
+   140→  return Math.min(MAX_DIM, Math.max(MIN_DIM, v))
+   141→}
+   142→
+   143→/* --------------------------------- component -------------------------------- */
+   144→
+   145→export default function ImageEditor({ file, blob, dirty, onDirtyChange, onSave }: ViewerEditorProps) {
+   146→  const { t } = useI18n()
+   147→
+   148→  /* ------------------------------- refs / state ------------------------------ */
+   149→  const workingRef = useRef<HTMLCanvasElement | null>(null)
+   150→  const sourceRef = useRef<ImageBitmap | null>(null)
+   151→  const undoStackRef = useRef<HTMLCanvasElement[]>([])
+   152→  const workerRef = useRef<Worker | null>(null)
+   153→  const previewRef = useRef<HTMLCanvasElement | null>(null)
+   154→  const stageRef = useRef<HTMLDivElement | null>(null)
+   155→  const dragStartRef = useRef<{ x: number; y: number } | null>(null)
+   156→  const geomDirtyRef = useRef(false)
+   157→  const dirtyMirrorRef = useRef(dirty)
+   158→  const onDirtyRef = useRef(onDirtyChange)
+   159→  const loadedIdRef = useRef<string | null>(null)
+   160→
+   161→  const [decoding, setDecoding] = useState(true)
+   162→  const [decodeError, setDecodeError] = useState(false)
+   163→  const [workingVersion, setWorkingVersion] = useState(0)
+   164→  const [stackDepth, setStackDepth] = useState(0)
+   165→  const [filters, setFilters] = useState<Filters>({ ...DEFAULT_FILTERS })
+   166→  const [filtersOpen, setFiltersOpen] = useState(false)
+   167→  const [saving, setSaving] = useState(false)
+   168→  const [cropMode, setCropMode] = useState(false)
+   169→  const [cropRect, setCropRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
+   170→  const [resizeOpen, setResizeOpen] = useState(false)
+   171→  const [resizeW, setResizeW] = useState('0')
+   172→  const [resizeH, setResizeH] = useState('0')
+   173→  const [resizeRatio, setResizeRatio] = useState(1)
+   174→  const [keepAspect, setKeepAspect] = useState(true)
+   175→  const [stageSize, setStageSize] = useState({ w: 0, h: 0 })
+   176→  const [dispSize, setDispSize] = useState({ w: 0, h: 0 })
+   177→
+   178→  /* ------------------------------ dirty plumbing ----------------------------- */
+   179→  useEffect(() => {
+   180→    onDirtyRef.current = onDirtyChange
+   181→  })
+   182→
+   183→  useEffect(() => {
+   184→    dirtyMirrorRef.current = dirty
+   185→  }, [dirty])
+   186→
+   187→  const applyDirty = useCallback((d: boolean) => {
+   188→    if (dirtyMirrorRef.current === d) return
+   189→    dirtyMirrorRef.current = d
+   190→    onDirtyRef.current(d)
+   191→  }, [])
+   192→
+   193→  /* ------------------------------ source decoding ----------------------------- */
+   194→  useEffect(() => {
+   195→    if (loadedIdRef.current === file.id) return
+   196→    loadedIdRef.current = file.id
+   197→    let cancelled = false
+   198→
+   199→    setDecoding(true)
+   200→    setDecodeError(false)
+   201→
+   202→    const decode = async () => {
+   203→      try {
+   204→        if (typeof createImageBitmap !== 'function') throw new Error('createImageBitmap unsupported')
+   205→        const bmp = await createImageBitmap(blob)
+   206→        if (cancelled) {
+   207→          try {
+   208→            bmp.close()
+   209→          } catch {
+   210→            /* ignore */
+   211→          }
+   212→          return
+   213→        }
+   214→        const canvas = document.createElement('canvas')
+   215→        canvas.width = bmp.width
+   216→        canvas.height = bmp.height
+   217→        const ctx = canvas.getContext('2d')
+   218→        if (!ctx) throw new Error('2d context unavailable')
+   219→        ctx.drawImage(bmp, 0, 0)
+   220→
+   221→        sourceRef.current = bmp
+   222→        workingRef.current = canvas
+   223→        undoStackRef.current = []
+   224→        geomDirtyRef.current = false
+   225→        setStackDepth(0)
+   226→        setFilters({ ...DEFAULT_FILTERS })
+   227→        setCropMode(false)
+   228→        setCropRect(null)
+   229→        setDispSize({ w: 0, h: 0 })
+   230→        setWorkingVersion((v) => v + 1)
+   231→        setDecoding(false)
+   232→        applyDirty(false)
+   233→      } catch {
+   234→        if (!cancelled) {
+   235→          setDecoding(false)
+   236→          setDecodeError(true)
+   237→        }
+   238→      }
+   239→    }
+   240→
+   241→    void decode()
+   242→    return () => {
+   243→      cancelled = true
+   244→    }
+   245→  }, [file.id, blob, applyDirty])
+   246→
+   247→  /* --------------------------- worker (lazy + cleanup) ------------------------ */
+   248→  useEffect(
+   249→    () => () => {
+   250→      workerRef.current?.terminate()
+   251→      workerRef.current = null
+   252→    },
+   253→    []
+   254→  )
+   255→
+   256→  const getWorker = (): Worker | null => {
+   257→    if (workerRef.current) return workerRef.current
+   258→    try {
+   259→      if (typeof Worker === 'undefined') return null
+   260→      workerRef.current = new Worker('/workers/image-worker.js')
+   261→      return workerRef.current
+   262→    } catch {
+   263→      workerRef.current = null
+   264→      return null
+   265→    }
+   266→  }
+   267→
+   268→  const runWorkerExport = (
+   269→    worker: Worker,
+   270→    bitmap: ImageBitmap,
+   271→    filter: string,
+   272→    type: string,
+   273→    quality?: number
+   274→  ): Promise<Blob> =>
+   275→    new Promise<Blob>((resolve, reject) => {
+   276→      let settled = false
+   277→      const onMessage = (e: MessageEvent) => {
+   278→        if (settled) return
+   279→        settled = true
+   280→        worker.removeEventListener('message', onMessage)
+   281→        worker.removeEventListener('error', onError)
+   282→        const data = e.data as { ok?: boolean; blob?: Blob; error?: string } | null
+   283→        if (data && data.ok && data.blob) resolve(data.blob)
+   284→        else reject(new Error((data && data.error) || 'worker export failed'))
+   285→      }
+   286→      const onError = () => {
+   287→        if (settled) return
+   288→        settled = true
+   289→        worker.removeEventListener('message', onMessage)
+   290→        worker.removeEventListener('error', onError)
+   291→        reject(new Error('worker crashed'))
+   292→      }
+   293→      worker.addEventListener('message', onMessage)
+   294→      worker.addEventListener('error', onError)
+   295→      worker.postMessage({ bitmap, filter, type, quality }, [bitmap])
+   296→    })
+   297→
+   298→  /** Worker export with main-thread fallback. */
+   299→  const exportImage = async (): Promise<Blob> => {
+   300→    const working = workingRef.current
+   301→    if (!working) throw new Error('nothing to export')
+   302→    const { type, quality } = exportFormat(file.mime)
+   303→    const filter = buildFilterString(filters)
+   304→
+   305→    const canWorker =
+   306→      typeof Worker !== 'undefined' &&
+   307→      typeof createImageBitmap === 'function' &&
+   308→      typeof OffscreenCanvas !== 'undefined'
+   309→
+   310→    if (canWorker) {
+   311→      try {
+   312→        const bitmap = await createImageBitmap(working)
+   313→        const worker = getWorker()
+   314→        if (!worker) throw new Error('worker unavailable')
+   315→        return await runWorkerExport(worker, bitmap, filter, type, quality)
+   316→      } catch {
+   317→        // Terminate the broken worker; it will be recreated on next attempt.
+   318→        workerRef.current?.terminate()
+   319→        workerRef.current = null
+   320→      }
+   321→    }
+   322→
+   323→    const out = await new Promise<Blob | null>((resolve) => working.toBlob(resolve, type, quality))
+   324→    if (!out) throw new Error('main-thread export failed')
+   325→    return out
+   326→  }
+   327→
+   328→  const handleSave = async () => {
+   329→    if (saving || !dirty) return
+   330→    setSaving(true)
+   331→    try {
+   332→      const out = await exportImage()
+   333→      await onSave(out)
+   334→      geomDirtyRef.current = false
+   335→      applyDirty(false)
+   336→      toast.success(t('tSaved'))
+   337→    } catch {
+   338→      toast.error(t('tSaveFailed'))
+   339→    } finally {
+   340→      setSaving(false)
+   341→    }
+   342→  }
+   343→
+   344→  /* ------------------------------ geometry engine ----------------------------- */
+   345→  const runGeometry = (make: (src: HTMLCanvasElement) => HTMLCanvasElement | null) => {
+   346→    const src = workingRef.current
+   347→    if (!src) return
+   348→    const next = make(src)
+   349→    if (!next) return
+   350→
+   351→    // Snapshot the previous state for undo (cap 15).
+   352→    const snap = document.createElement('canvas')
+   353→    snap.width = src.width
+   354→    snap.height = src.height
+   355→    const sctx = snap.getContext('2d')
+   356→    if (!sctx) return
+   357→    sctx.drawImage(src, 0, 0)
+   358→
+   359→    const stack = undoStackRef.current
+   360→    stack.push(snap)
+   361→    while (stack.length > UNDO_LIMIT) stack.shift()
+   362→    setStackDepth(stack.length)
+   363→
+   364→    workingRef.current = next
+   365→    geomDirtyRef.current = true
+   366→    applyDirty(true)
+   367→    setWorkingVersion((v) => v + 1)
+   368→  }
+   369→
+   370→  const rotate = (cw: boolean) =>
+   371→    runGeometry((src) => {
+   372→      const canvas = document.createElement('canvas')
+   373→      canvas.width = src.height
+   374→      canvas.height = src.width
+   375→      const ctx = canvas.getContext('2d')
+   376→      if (!ctx) return null
+   377→      if (cw) {
+   378→        ctx.translate(canvas.width, 0)
+   379→        ctx.rotate(Math.PI / 2)
+   380→      } else {
+   381→        ctx.translate(0, canvas.height)
+   382→        ctx.rotate(-Math.PI / 2)
+   383→      }
+   384→      ctx.drawImage(src, 0, 0)
+   385→      return canvas
+   386→    })
+   387→
+   388→  const flip = (horizontal: boolean) =>
+   389→    runGeometry((src) => {
+   390→      const canvas = document.createElement('canvas')
+   391→      canvas.width = src.width
+   392→      canvas.height = src.height
+   393→      const ctx = canvas.getContext('2d')
+   394→      if (!ctx) return null
+   395→      if (horizontal) ctx.translate(canvas.width, 0)
+   396→      else ctx.translate(0, canvas.height)
+   397→      ctx.scale(horizontal ? -1 : 1, horizontal ? 1 : -1)
+   398→      ctx.drawImage(src, 0, 0)
+   399→      return canvas
+   400→    })
+   401→
+   402→  const handleUndo = () => {
+   403→    const stack = undoStackRef.current
+   404→    const prev = stack.pop()
+   405→    if (!prev) return
+   406→    workingRef.current = prev
+   407→    setStackDepth(stack.length)
+   408→    geomDirtyRef.current = true
+   409→    applyDirty(true)
+   410→    setWorkingVersion((v) => v + 1)
+   411→  }
+   412→
+   413→  const handleReset = () => {
+   414→    const bmp = sourceRef.current
+   415→    if (!bmp) return
+   416→    const canvas = document.createElement('canvas')
+   417→    canvas.width = bmp.width
+   418→    canvas.height = bmp.height
+   419→    const ctx = canvas.getContext('2d')
+   420→    if (!ctx) return
+   421→    ctx.drawImage(bmp, 0, 0)
+   422→
+   423→    workingRef.current = canvas
+   424→    undoStackRef.current = []
+   425→    geomDirtyRef.current = false
+   426→    setStackDepth(0)
+   427→    setFilters({ ...DEFAULT_FILTERS })
+   428→    setCropMode(false)
+   429→    setCropRect(null)
+   430→    applyDirty(false)
+   431→    setWorkingVersion((v) => v + 1)
+   432→  }
+   433→
+   434→  /* --------------------------------- filters --------------------------------- */
+   435→  const updateFilters = (next: Filters) => {
+   436→    setFilters(next)
+   437→    applyDirty(buildFilterString(next) !== '' || geomDirtyRef.current)
+   438→  }
+   439→
+   440→  const setFilterValue = (key: keyof Filters, value: number) => {
+   441→    updateFilters({ ...filters, [key]: value })
+   442→  }
+   443→
+   444→  const activePreset = PRESETS.find((p) => filtersEqual(p.values, filters))?.id ?? null
+   445→
+   446→  /* ---------------------------------- stage ---------------------------------- */
+   447→  useEffect(() => {
+   448→    if (decoding || decodeError) return
+   449→    const el = stageRef.current
+   450→    if (!el || typeof ResizeObserver === 'undefined') return
+   451→    const ro = new ResizeObserver((entries) => {
+   452→      for (const entry of entries) {
+   453→        const { width, height } = entry.contentRect
+   454→        setStageSize((prev) =>
+   455→          Math.abs(prev.w - width) < 1 && Math.abs(prev.h - height) < 1
+   456→            ? prev
+   457→            : { w: width, h: height }
+   458→        )
+   459→      }
+   460→    })
+   461→    ro.observe(el)
+   462→    return () => ro.disconnect()
+   463→  }, [decoding, decodeError])
+   464→
+   465→  useEffect(() => {
+   466→    const working = workingRef.current
+   467→    if (!working || stageSize.w <= 0 || stageSize.h <= 0) return
+   468→    // Reserve a little vertical room for the crop hint/confirm row.
+   469→    const availH = Math.max(64, stageSize.h - (cropMode ? 84 : 0))
+   470→    const scale = Math.min(stageSize.w / working.width, availH / working.height, 1)
+   471→    const w = Math.max(1, Math.round(working.width * scale))
+   472→    const h = Math.max(1, Math.round(working.height * scale))
+   473→    setDispSize((prev) => (prev.w === w && prev.h === h ? prev : { w, h }))
+   474→  }, [stageSize, workingVersion, cropMode])
+   475→
+   476→  // Repaint preview (working canvas + current filter string) whenever anything changes.
+   477→  useEffect(() => {
+   478→    const working = workingRef.current
+   479→    const preview = previewRef.current
+   480→    if (!working || !preview) return
+   481→    if (preview.width !== working.width) preview.width = working.width
+   482→    if (preview.height !== working.height) preview.height = working.height
+   483→    const ctx = preview.getContext('2d')
+   484→    if (!ctx) return
+   485→    ctx.clearRect(0, 0, preview.width, preview.height)
+   486→    const fs = buildFilterString(filters)
+   487→    ctx.filter = fs || 'none'
+   488→    ctx.drawImage(working, 0, 0)
+   489→    ctx.filter = 'none'
+   490→  }, [filters, dispSize, workingVersion])
+   491→
+   492→  /* ----------------------------------- crop ----------------------------------- */
+   493→  const toggleCrop = () => {
+   494→    if (cropMode) {
+   495→      setCropMode(false)
+   496→      setCropRect(null)
+   497→    } else {
+   498→      setCropRect(null)
+   499→      setCropMode(true)
+   500→    }
+   501→  }
+   502→
+   503→  const cropPoint = (e: ReactPointerEvent<HTMLDivElement>) => {
+   504→    const rect = e.currentTarget.getBoundingClientRect()
+   505→    return {
+   506→      x: Math.min(Math.max(0, e.clientX - rect.left), rect.width),
+   507→      y: Math.min(Math.max(0, e.clientY - rect.top), rect.height),
+   508→    }
+   509→  }
+   510→
+   511→  const onCropPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+   512→    if (e.pointerType === 'mouse' && e.button !== 0) return
+   513→    e.preventDefault()
+   514→    try {
+   515→      e.currentTarget.setPointerCapture(e.pointerId)
+   516→    } catch {
+   517→      /* ignore */
+   518→    }
+   519→    const p = cropPoint(e)
+   520→    dragStartRef.current = p
+   521→    setCropRect({ x: p.x, y: p.y, w: 0, h: 0 })
+   522→  }
+   523→
+   524→  const onCropPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+   525→    const start = dragStartRef.current
+   526→    if (!start) return
+   527→    const p = cropPoint(e)
+   528→    setCropRect({
+   529→      x: Math.min(start.x, p.x),
+   530→      y: Math.min(start.y, p.y),
+   531→      w: Math.abs(p.x - start.x),
+   532→      h: Math.abs(p.y - start.y),
+   533→    })
+   534→  }
+   535→
+   536→  const onCropPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+   537→    dragStartRef.current = null
+   538→    try {
+   539→      e.currentTarget.releasePointerCapture(e.pointerId)
+   540→    } catch {
+   541→      /* ignore */
+   542→    }
+   543→  }
+   544→
+   545→  const exitCrop = () => {
+   546→    setCropMode(false)
+   547→    setCropRect(null)
+   548→  }
+   549→
+   550→  const applyCrop = () => {
+   551→    const working = workingRef.current
+   552→    if (!working || !cropRect) return
+   553→    // Ignore accidental taps: require a real drag on screen.
+   554→    if (cropRect.w < 2 || cropRect.h < 2) {
+   555→      exitCrop()
+   556→      return
+   557→    }
+   558→    const scale = dispSize.w > 0 ? working.width / dispSize.w : 1
+   559→    const sx = Math.round(cropRect.x * scale)
+   560→    const sy = Math.round(cropRect.y * scale)
+   561→    const sw = Math.round(cropRect.w * scale)
+   562→    const sh = Math.round(cropRect.h * scale)
+   563→    const cx = Math.min(Math.max(0, sx), Math.max(0, working.width - MIN_CROP_PX))
+   564→    const cy = Math.min(Math.max(0, sy), Math.max(0, working.height - MIN_CROP_PX))
+   565→    const cw = Math.min(Math.max(MIN_CROP_PX, sw), working.width - cx)
+   566→    const ch = Math.min(Math.max(MIN_CROP_PX, sh), working.height - cy)
+   567→
+   568→    runGeometry((src) => {
+   569→      const canvas = document.createElement('canvas')
+   570→      canvas.width = cw
+   571→      canvas.height = ch
+   572→      const ctx = canvas.getContext('2d')
+   573→      if (!ctx) return null
+   574→      ctx.drawImage(src, cx, cy, cw, ch, 0, 0, cw, ch)
+   575→      return canvas
+   576→    })
+   577→    exitCrop()
+   578→  }
+   579→
+   580→  /* ---------------------------------- resize ---------------------------------- */
+   581→  const openResize = () => {
+   582→    const working = workingRef.current
+   583→    if (!working) return
+   584→    setResizeW(String(working.width))
+   585→    setResizeH(String(working.height))
+   586→    setResizeRatio(working.height > 0 ? working.width / working.height : 1)
+   587→    setResizeOpen(true)
+   588→  }
+   589→
+   590→  const handleResizeWidth = (value: string) => {
+   591→    setResizeW(value)
+   592→    if (!keepAspect || resizeRatio <= 0) return
+   593→    const n = Number(value)
+   594→    if (Number.isFinite(n) && n > 0) setResizeH(String(Math.max(1, Math.round(n / resizeRatio))))
+   595→  }
+   596→
+   597→  const handleResizeHeight = (value: string) => {
+   598→    setResizeH(value)
+   599→    if (!keepAspect || resizeRatio <= 0) return
+   600→    const n = Number(value)
+   601→    if (Number.isFinite(n) && n > 0) setResizeW(String(Math.max(1, Math.round(n * resizeRatio))))
+   602→  }
+   603→
+   604→  const applyResize = () => {
+   605→    const w = clampDim(Number(resizeW))
+   606→    const h = keepAspect && resizeRatio > 0 ? clampDim(w / resizeRatio) : clampDim(Number(resizeH))
+   607→    runGeometry((src) => {
+   608→      const canvas = document.createElement('canvas')
+   609→      canvas.width = w
+   610→      canvas.height = h
+   611→      const ctx = canvas.getContext('2d')
+   612→      if (!ctx) return null
+   613→      ctx.imageSmoothingEnabled = true
+   614→      ctx.imageSmoothingQuality = 'high'
+   615→      ctx.drawImage(src, 0, 0, w, h)
+   616→      return canvas
+   617→    })
+   618→    setResizeOpen(false)
+   619→  }
+   620→
+   621→  /* --------------------------------- renders --------------------------------- */
+   622→  if (decodeError) {
+   623→    return (
+   624→      <div className="flex h-full min-h-0 flex-col items-center justify-center p-6">
+   625→        <Card className="w-full max-w-xs text-center text-sm text-muted-foreground">
+   626→          {t('errGeneric')}
+   627→        </Card>
+   628→      </div>
+   629→    )
+   630→  }
+   631→
+   632→  if (decoding) {
+   633→    return (
+   634→      <div className="flex h-full min-h-0 flex-col items-center justify-center gap-3 p-6">
+   635→        <Skeleton className="h-44 w-44 rounded-md" />
+   636→        <p className="text-xs text-muted-foreground">{t('imgProcessing')}</p>
+   637→      </div>
+   638→    )
+   639→  }
+   640→
+   641→  const hasSelection = !!cropRect && cropRect.w > 0 && cropRect.h > 0
+   642→
+   643→  return (
+   644→    <div className="flex h-full min-h-0 flex-col">
+   645→      {/* Toolbar — geometry */}
+   646→      <div className="no-touch-callout flex shrink-0 items-center gap-1.5 overflow-x-auto border-b bg-background/95 px-2 py-2">
+   647→        <Button
+   648→          variant="ghost"
+   649→          size="icon"
+   650→          className="h-10 w-10 shrink-0"
+   651→          title={t('imgRotateLeft')}
+   652→          aria-label={t('imgRotateLeft')}
+   653→          onClick={() => rotate(false)}
+   654→        >
+   655→          <RotateCcw />
+   656→        </Button>
+   657→        <Button
+   658→          variant="ghost"
+   659→          size="icon"
+   660→          className="h-10 w-10 shrink-0"
+   661→          title={t('imgRotateRight')}
+   662→          aria-label={t('imgRotateRight')}
+   663→          onClick={() => rotate(true)}
+   664→        >
+   665→          <RotateCw />
+   666→        </Button>
+   667→        <Button
+   668→          variant="ghost"
+   669→          size="icon"
+   670→          className="h-10 w-10 shrink-0"
+   671→          title={t('imgFlipH')}
+   672→          aria-label={t('imgFlipH')}
+   673→          onClick={() => flip(true)}
+   674→        >
+   675→          <FlipHorizontal2 />
+   676→        </Button>
+   677→        <Button
+   678→          variant="ghost"
+   679→          size="icon"
+   680→          className="h-10 w-10 shrink-0"
+   681→          title={t('imgFlipV')}
+   682→          aria-label={t('imgFlipV')}
+   683→          onClick={() => flip(false)}
+   684→        >
+   685→          <FlipVertical2 />
+   686→        </Button>
+   687→        <Button
+   688→          variant={cropMode ? 'secondary' : 'ghost'}
+   689→          size="icon"
+   690→          className="h-10 w-10 shrink-0"
+   691→          title={t('imgCrop')}
+   692→          aria-label={t('imgCrop')}
+   693→          onClick={toggleCrop}
+   694→        >
+   695→          <Crop />
+   696→        </Button>
+   697→        <Button
+   698→          variant="ghost"
+   699→          size="icon"
+   700→          className="h-10 w-10 shrink-0"
+   701→          title={t('imgResize')}
+   702→          aria-label={t('imgResize')}
+   703→          onClick={openResize}
+   704→        >
+   705→          <Scaling />
+   706→        </Button>
+   707→        <Separator orientation="vertical" className="h-6 shrink-0" />
+   708→        <Button
+   709→          variant="ghost"
+   710→          size="icon"
+   711→          className="h-10 w-10 shrink-0"
+   712→          title={t('imgUndo')}
+   713→          aria-label={t('imgUndo')}
+   714→          disabled={stackDepth === 0}
+   715→          onClick={handleUndo}
+   716→        >
+   717→          <Undo2 />
+   718→        </Button>
+   719→        <Button
+   720→          variant="ghost"
+   721→          size="icon"
+   722→          className="h-10 w-10 shrink-0"
+   723→          title={t('reset')}
+   724→          aria-label={t('reset')}
+   725→          onClick={handleReset}
+   726→        >
+   727→          <RefreshCw />
+   728→        </Button>
+   729→        <Button
+   730→          variant="ghost"
+   731→          size="icon"
+   732→          className="h-10 w-10 shrink-0"
+   733→          title={t('save')}
+   734→          aria-label={t('save')}
+   735→          disabled={!dirty || saving}
+   736→          onClick={handleSave}
+   737→        >
+   738→          {saving ? <Loader2 className="animate-spin" /> : <Save />}
+   739→        </Button>
+   740→        <Button
+   741→          variant={filtersOpen ? 'secondary' : 'ghost'}
+   742→          size="icon"
+   743→          className="h-10 w-10 shrink-0"
+   744→          title={t('imgFilters')}
+   745→          aria-label={t('imgFilters')}
+   746→          onClick={() => setFiltersOpen((o) => !o)}
+   747→        >
+   748→          <SlidersHorizontal />
+   749→        </Button>
+   750→      </div>
+   751→
+   752→      {/* Filters panel (non-destructive; baked in on save) */}
+   753→      {filtersOpen && (
+   754→        <div className="shrink-0 space-y-3 border-b bg-card px-3 py-3">
+   755→          <div className="flex items-center gap-2">
+   756→            <Label className="shrink-0 text-xs text-muted-foreground">{t('imgPresets')}</Label>
+   757→            <div className="no-touch-callout flex flex-1 gap-1.5 overflow-x-auto pb-0.5">
+   758→              {PRESETS.map((preset) => (
+   759→                <Button
+   760→                  key={preset.id}
+   761→                  variant={activePreset === preset.id ? 'default' : 'secondary'}
+   762→                  size="sm"
+   763→                  className="h-8 shrink-0 rounded-full px-3"
+   764→                  onClick={() => updateFilters({ ...preset.values })}
+   765→                >
+   766→                  {t(preset.labelKey)}
+   767→                </Button>
+   768→              ))}
+   769→            </div>
+   770→          </div>
+   771→          <div className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+   772→            {SLIDERS.map((slider) => (
+   773→              <div key={slider.key} className="space-y-1.5">
+   774→                <div className="flex items-center justify-between">
+   775→                  <Label className="text-xs text-muted-foreground">{t(slider.labelKey)}</Label>
+   776→                  <span className="text-xs tabular-nums text-muted-foreground">
+   777→                    {filters[slider.key]}
+   778→                    {slider.unit}
+   779→                  </span>
+   780→                </div>
+   781→                <Slider
+   782→                  min={slider.min}
+   783→                  max={slider.max}
+   784→                  step={1}
+   785→                  value={[filters[slider.key]]}
+   786→                  onValueChange={(value) =>
+   787→                    setFilterValue(
+   788→                      slider.key,
+   789→                      Array.isArray(value) && value.length > 0 ? value[0] : filters[slider.key]
+   790→                    )
+   791→                  }
+   792→                  aria-label={t(slider.labelKey)}
+   793→                />
+   794→              </div>
+   795→            ))}
+   796→          </div>
+   797→        </div>
+   798→      )}
+   799→
+   800→      {/* Canvas stage */}
+   801→      <div
+   802→        ref={stageRef}
+   803→        className="relative flex min-h-0 flex-1 items-center justify-center overflow-auto bg-muted/40 p-3 dark:bg-muted/20"
+   804→      >
+   805→        <div className="flex flex-col items-center gap-2">
+   806→          {cropMode && <p className="text-xs text-muted-foreground">{t('imgCropHint')}</p>}
+   807→          <div className="relative inline-block overflow-hidden rounded-sm">
+   808→            {dispSize.w > 0 && (
+   809→              <canvas
+   810→                ref={previewRef}
+   811→                className="max-w-full rounded-sm shadow-md"
+   812→                style={{ width: dispSize.w, height: dispSize.h }}
+   813→              />
+   814→            )}
+   815→            {cropMode && (
+   816→              <div
+   817→                className="absolute inset-0 z-10 cursor-crosshair touch-none select-none"
+   818→                onPointerDown={onCropPointerDown}
+   819→                onPointerMove={onCropPointerMove}
+   820→                onPointerUp={onCropPointerUp}
+   821→                onPointerCancel={onCropPointerUp}
+   822→              >
+   823→                {hasSelection && cropRect && (
+   824→                  <div
+   825→                    className="pointer-events-none absolute border-2 border-dashed border-white/90"
+   826→                    style={{
+   827→                      left: cropRect.x,
+   828→                      top: cropRect.y,
+   829→                      width: cropRect.w,
+   830→                      height: cropRect.h,
+   831→                      boxShadow: '0 0 0 9999px rgba(0,0,0,0.5)',
+   832→                    }}
+   833→                  />
+   834→                )}
+   835→              </div>
+   836→            )}
+   837→          </div>
+   838→          {cropMode && (
+   839→            <div className="flex items-center justify-center gap-2">
+   840→              <Button size="sm" className="h-10 px-4" onClick={applyCrop} disabled={!hasSelection}>
+   841→                {t('imgCropApply')}
+   842→              </Button>
+   843→              <Button size="sm" variant="ghost" className="h-10 px-4" onClick={exitCrop}>
+   844→                {t('cancel')}
+   845→              </Button>
+   846→            </div>
+   847→          )}
+   848→        </div>
+   849→      </div>
+   850→
+   851→      {/* Resize dialog */}
+   852→      <Dialog
+   853→        open={resizeOpen}
+   854→        onOpenChange={(open) => {
+   855→          if (!open) setResizeOpen(false)
+   856→        }}
+   857→      >
+   858→        <DialogContent className="sm:max-w-sm" aria-describedby={undefined}>
+   859→          <DialogHeader>
+   860→            <DialogTitle>{t('imgResizeTitle')}</DialogTitle>
+   861→          </DialogHeader>
+   862→          <div className="grid grid-cols-2 gap-3">
+   863→            <div className="space-y-1.5">
+   864→              <Label htmlFor="img-resize-w">{t('imgWidth')}</Label>
+   865→              <Input
+   866→                id="img-resize-w"
+   867→                type="number"
+   868→                inputMode="numeric"
+   869→                min={MIN_DIM}
+   870→                max={MAX_DIM}
+   871→                value={resizeW}
+   872→                onChange={(e) => handleResizeWidth(e.target.value)}
+   873→              />
+   874→            </div>
+   875→            <div className="space-y-1.5">
+   876→              <Label htmlFor="img-resize-h">{t('imgHeight')}</Label>
+   877→              <Input
+   878→                id="img-resize-h"
+   879→                type="number"
+   880→                inputMode="numeric"
+   881→                min={MIN_DIM}
+   882→                max={MAX_DIM}
+   883→                value={resizeH}
+   884→                onChange={(e) => handleResizeHeight(e.target.value)}
+   885→              />
+   886→            </div>
+   887→          </div>
+   888→          <div className="flex items-center gap-2">
+   889→            <Switch id="img-keep-aspect" checked={keepAspect} onCheckedChange={setKeepAspect} />
+   890→            <Label htmlFor="img-keep-aspect" className="text-sm font-normal">
+   891→              {t('imgKeepAspect')}
+   892→            </Label>
+   893→          </div>
+   894→          <DialogFooter>
+   895→            <Button variant="ghost" onClick={() => setResizeOpen(false)}>
+   896→              {t('cancel')}
+   897→            </Button>
+   898→            <Button onClick={applyResize}>{t('apply')}</Button>
+   899→          </DialogFooter>
+   900→        </DialogContent>
+   901→      </Dialog>
+   902→    </div>
+   903→  )
+   904→}
+   905→

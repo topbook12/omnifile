@@ -1,0 +1,41 @@
+{
+  "name": "OmniFile — All-in-One File Viewer & Editor",
+  "short_name": "OmniFile",
+  "description": "PDF, Word, Excel, CSV, ছবি, টেক্সট ও মিডিয়া — সব ফাইল দেখুন ও এডিট করুন। ১০০% লোকাল, অফলাইনেও কাজ করে।",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#0d9488",
+  "lang": "bn",
+  "dir": "ltr",
+  "categories": ["utilities", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Open files",
+      "short_name": "Open",
+      "url": "/?action=open"
+    }
+  ]
+}
