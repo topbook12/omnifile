@@ -1,0 +1,123 @@
+/**
+ * i18n dictionary — advanced tools: shared UI + AI (BYOK) settings.
+ * Owned by the main orchestrator (Task 3). Keys are referenced by
+ * src/components/tools/shared.tsx, ai-settings.tsx and tools-hub.tsx.
+ */
+
+export const en: Record<string, string> = {
+  // ── Tools hub ──
+  toolsHubTitle: 'File tools',
+  toolsHubDesc: 'Everything runs on your device — batch friendly, no uploads.',
+  toolsCatImage: 'Images',
+  toolsCatPdf: 'PDF',
+  toolsCatMedia: 'Video & Audio',
+  toolsOpen: 'Tools',
+  toolBack: 'All tools',
+
+  // ── Shared tool UI ──
+  toolRun: 'Process',
+  toolProcessing: 'Processing…',
+  toolDownloadAll: 'Download all (.zip)',
+  toolClear: 'Clear results',
+  toolFailedOne: '1 file failed',
+  toolFailedMany: '{n} files failed',
+  toolResultsReady: '{n} result(s) ready',
+  toolDropAccept: 'Drop files here or tap to choose',
+  toolDropAcceptOne: 'Drop a file here or tap to choose',
+  toolAddMore: 'Add more',
+  toolRemoveFile: 'Remove',
+  toolOnDevice: 'On-device',
+  toolNeedsKey: 'Your Gemini key',
+  toolBatchHint: 'Select as many files as you like — all are processed one by one.',
+  toolDownload: 'Download',
+  toolResultZipName: 'omnifile-results.zip',
+
+  // ── AI (BYOK) settings ──
+  aiSettingsTitle: 'AI features — your Gemini key',
+  aiSettingsDesc:
+    'AI tools use YOUR own Google Gemini API key. The key is saved only on this device; requests go straight from your browser to Google. OmniFile never sees your files or pays anything.',
+  aiKeyLabel: 'Gemini API key',
+  aiKeyPlaceholder: 'Paste your key (AIza…)',
+  aiKeyHow: 'Get a free key at aistudio.google.com/apikey',
+  aiKeySave: 'Save key',
+  aiKeyRemove: 'Remove key',
+  aiKeyTest: 'Test key',
+  aiKeyTesting: 'Checking…',
+  aiKeyValid: 'Key works',
+  aiKeyInvalid: 'Invalid key',
+  aiKeyMissing: 'This AI feature needs your Gemini API key — it stays on your device.',
+  aiKeySetBtn: 'Set Gemini key',
+  aiByokBadge: 'Your key · your quota',
+  aiModeOnDevice: 'On-device (free, works offline)',
+  aiModeGemini: 'Gemini AI (better quality, uses your key)',
+  aiModelVision: 'Vision / OCR model',
+  aiModelImage: 'Image editing model',
+  aiModelHint: 'Leave empty for the default',
+  aiKeyAdded: 'Gemini key saved on this device',
+  aiKeyRemoved: 'Gemini key removed',
+  aiErrNoKey: 'No Gemini API key set',
+  aiErrInvalidKey: 'The Gemini API key looks invalid',
+  aiErrRateLimit: 'Gemini rate limit reached — try again in a moment',
+  aiErrNetwork: 'Could not reach Google — check your connection',
+  aiErrApi: 'Gemini API error',
+  aiErrNoImage: 'The model did not return an image',
+}
+
+export const bn: Record<string, string> = {
+  // ── টুলস হাব ──
+  toolsHubTitle: 'ফাইল টুলস',
+  toolsHubDesc: 'সবকিছু আপনার ডিভাইসেই চলে — ব্যাচ সাপোর্টেড, কিছুই আপলোড হয় না।',
+  toolsCatImage: 'ছবি',
+  toolsCatPdf: 'PDF',
+  toolsCatMedia: 'ভিডিও ও অডিও',
+  toolsOpen: 'টুলস',
+  toolBack: 'সব টুলস',
+
+  // ── শেয়ারড টুল UI ──
+  toolRun: 'প্রসেস করুন',
+  toolProcessing: 'প্রসেস হচ্ছে…',
+  toolDownloadAll: 'সব ডাউনলোড (.zip)',
+  toolClear: 'ফলাফল মুছুন',
+  toolFailedOne: '১টি ফাইল ব্যর্থ হয়েছে',
+  toolFailedMany: '{n}টি ফাইল ব্যর্থ হয়েছে',
+  toolResultsReady: '{n}টি ফলাফল তৈরি',
+  toolDropAccept: 'ফাইল টেনে আনুন বা চাপ দিয়ে বাছুন',
+  toolDropAcceptOne: 'ফাইল টেনে আনুন বা চাপ দিয়ে বাছুন',
+  toolAddMore: 'আরও যোগ করুন',
+  toolRemoveFile: 'বাদ দিন',
+  toolOnDevice: 'অন-ডিভাইস',
+  toolNeedsKey: 'আপনার Gemini key',
+  toolBatchHint: 'যত খুশি ফাইল বাছুন — একটি একটি করে সব প্রসেস হবে।',
+  toolDownload: 'ডাউনলোড',
+  toolResultZipName: 'omnifile-results.zip',
+
+  // ── AI (BYOK) সেটিংস ──
+  aiSettingsTitle: 'AI ফিচার — আপনার Gemini key',
+  aiSettingsDesc:
+    'AI টুলস ব্যবহার করে আপনার নিজের Google Gemini API key। key শুধু এই ডিভাইসেই সেভ থাকে; রিকোয়েস্ট সরাসরি আপনার ব্রাউজার থেকে Google-এ যায়। আপনার ফাইল OmniFile-এ আসে না, আমাদের কোনো খরচও হয় না।',
+  aiKeyLabel: 'Gemini API key',
+  aiKeyPlaceholder: 'আপনার key পেস্ট করুন (AIza…)',
+  aiKeyHow: 'aistudio.google.com/apikey থেকে ফ্রি key নিন',
+  aiKeySave: 'key সেভ করুন',
+  aiKeyRemove: 'key মুছুন',
+  aiKeyTest: 'key পরীক্ষা',
+  aiKeyTesting: 'পরীক্ষা হচ্ছে…',
+  aiKeyValid: 'key ঠিক আছে',
+  aiKeyInvalid: 'key সঠিক নয়',
+  aiKeyMissing: 'এই AI ফিচারের জন্য আপনার Gemini API key দরকার — key শুধু আপনার ডিভাইসেই থাকে।',
+  aiKeySetBtn: 'Gemini key দিন',
+  aiByokBadge: 'আপনার key · আপনার কোটা',
+  aiModeOnDevice: 'অন-ডিভাইস (ফ্রি, অফলাইনে চলে)',
+  aiModeGemini: 'Gemini AI (ভালো মান, আপনার key ব্যবহার হয়)',
+  aiModelVision: 'ভিশন / OCR মডেল',
+  aiModelImage: 'ইমেজ এডিটিং মডেল',
+  aiModelHint: 'খালি রাখলে ডিফল্ট ব্যবহৃত হবে',
+  aiKeyAdded: 'Gemini key এই ডিভাইসে সেভ হয়েছে',
+  aiKeyRemoved: 'Gemini key মুছে ফেলা হয়েছে',
+  aiErrNoKey: 'কোনো Gemini API key দেওয়া নেই',
+  aiErrInvalidKey: 'Gemini API key টি সঠিক মনে হচ্ছে না',
+  aiErrRateLimit: 'Gemini-র লিমিট শেষ — একটু পরে চেষ্টা করুন',
+  aiErrNetwork: 'Google-এ পৌঁছানো যায়নি — ইন্টারনেট দেখুন',
+  aiErrApi: 'Gemini API সমস্যা',
+  aiErrNoImage: 'মডেল কোনো ছবি ফেরত দেয়নি',
+}

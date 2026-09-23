@@ -7,6 +7,12 @@
  */
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 
+// Advanced-tools namespaces (each file is owned by a dedicated agent/task).
+import { en as toolsCoreEn, bn as toolsCoreBn } from './i18n/tools-core'
+import { en as toolsImageEn, bn as toolsImageBn } from './i18n/tools-image'
+import { en as toolsPdfEn, bn as toolsPdfBn } from './i18n/tools-pdf'
+import { en as toolsMediaEn, bn as toolsMediaBn } from './i18n/tools-media'
+
 export type Lang = 'bn' | 'en'
 
 const STORAGE_KEY = 'omnifile-lang'
@@ -521,7 +527,10 @@ const bn: Record<string, string> = {
   docxConverted: 'কনভার্ট হয়েছে — ডাউনলোড শুরু হয়েছে',
 }
 
-const DICTS: Record<Lang, Record<string, string>> = { en, bn }
+const DICTS: Record<Lang, Record<string, string>> = {
+  en: { ...en, ...toolsCoreEn, ...toolsImageEn, ...toolsPdfEn, ...toolsMediaEn },
+  bn: { ...bn, ...toolsCoreBn, ...toolsImageBn, ...toolsPdfBn, ...toolsMediaBn },
+}
 
 interface I18nContextValue {
   lang: Lang

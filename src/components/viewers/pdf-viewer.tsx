@@ -683,7 +683,7 @@ export default function PdfViewer({ blob, onDirtyChange, onSave }: ViewerEditorP
     async (opts: {
       burnAnnotations?: boolean
       keepAnnotations?: boolean
-      successKey?: 'pdfPageDeleted' | 'pdfWatermarkApplied' | 'pdfPageNumbersApplied' | 'pdfMerged'
+      successKey?: 'tSaved' | 'pdfPageDeleted' | 'pdfWatermarkApplied' | 'pdfPageNumbersApplied' | 'pdfMerged'
       mutate?: (pdfDoc: PDFDocument, font: PDFFont) => void | Promise<void>
     }) => {
       if (busyRef.current) return

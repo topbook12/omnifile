@@ -11,6 +11,7 @@ import {
   Loader2,
   Search,
   ShieldCheck,
+  Wrench,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -18,6 +19,7 @@ import { InstallButton } from '@/components/pwa/install-button'
 import { LangToggle } from '@/components/pwa/lang-toggle'
 import { ThemeToggle } from '@/components/pwa/theme-toggle'
 import { FileCard } from '@/components/library/file-card'
+import { ToolsHub } from '@/components/tools/tools-hub'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -118,6 +120,7 @@ export default function HomePage() {
   const [openBlob, setOpenBlob] = useState<Blob | null>(null)
   const [blobLoading, setBlobLoading] = useState(false)
   const [dirty, setDirty] = useState(false)
+  const [toolsOpen, setToolsOpen] = useState(false)
 
   const [dragActive, setDragActive] = useState(false)
   const dragDepth = useRef(0)
@@ -364,10 +367,10 @@ export default function HomePage() {
   return (
     <div
       className="flex h-dvh flex-col overflow-hidden"
-      onDragEnter={openId ? undefined : onDragEnter}
-      onDragLeave={openId ? undefined : onDragLeave}
+      onDragEnter={openId || toolsOpen ? undefined : onDragEnter}
+      onDragLeave={openId || toolsOpen ? undefined : onDragLeave}
       onDragOver={onDragOver}
-      onDrop={openId ? undefined : onDrop}
+      onDrop={openId || toolsOpen ? undefined : onDrop}
     >
       {/* ---------------- Header ---------------- */}
       <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
@@ -426,11 +429,22 @@ export default function HomePage() {
               </>
             ) : (
               <>
-                <InstallButton />
-                <Button size="sm" className="h-10 gap-1.5" onClick={pickFiles}>
-                  <FolderOpen className="h-4 w-4" />
-                  <span className="hidden sm:inline">{t('openFiles')}</span>
+                <Button
+                  variant={toolsOpen ? 'default' : 'outline'}
+                  size="sm"
+                  className="h-10 gap-1.5"
+                  onClick={() => setToolsOpen((v) => !v)}
+                >
+                  <Wrench className="h-4 w-4" />
+                  <span className="hidden sm:inline">{t('toolsOpen')}</span>
                 </Button>
+                <InstallButton />
+                {!toolsOpen && (
+                  <Button size="sm" className="h-10 gap-1.5" onClick={pickFiles}>
+                    <FolderOpen className="h-4 w-4" />
+                    <span className="hidden sm:inline">{t('openFiles')}</span>
+                  </Button>
+                )}
               </>
             )}
             <ThemeToggle />
@@ -443,6 +457,8 @@ export default function HomePage() {
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {openId ? (
           <div className="flex min-h-0 flex-1 flex-col">{renderViewer()}</div>
+        ) : toolsOpen ? (
+          <ToolsHub onBack={() => setToolsOpen(false)} />
         ) : (
           <div className="mx-auto h-full w-full max-w-6xl flex-1 overflow-y-auto px-4 pb-12 pt-6">
             {/* Drop zone hero */}
@@ -576,7 +592,7 @@ export default function HomePage() {
       </footer>
 
       {/* ---------------- Drag overlay ---------------- */}
-      {dragActive && !openId && (
+      {dragActive && !openId && !toolsOpen && (
         <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm">
           <div className="rounded-2xl border-4 border-dashed border-primary/60 bg-background/90 px-10 py-8 text-center shadow-xl">
             <FolderOpen className="mx-auto h-10 w-10 text-primary" aria-hidden />

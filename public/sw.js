@@ -1,5 +1,5 @@
 /* OmniFile Service Worker — offline shell (network-first with cache fallback) */
-const CACHE = 'omnifile-v1'
+const CACHE = 'omnifile-v2'
 const CORE = [
   '/',
   '/manifest.webmanifest',
@@ -31,6 +31,39 @@ self.addEventListener('fetch', (event) => {
   const req = event.request
   if (req.method !== 'GET') return
   const url = new URL(req.url)
+
+  // ── Tool WASM / AI-model assets (ffmpeg, tesseract, imgly) ──
+  // Cache-first: these are immutable versioned files; caching them makes the
+  // heavy tools work offline after their first use.
+  const TOOL_CDN_HOSTS = [
+    'unpkg.com',
+    'cdn.jsdelivr.net',
+    'staticimgly.com',
+    'tessdata.projectnaptha.com',
+  ]
+  if (TOOL_CDN_HOSTS.includes(url.hostname)) {
+    event.respondWith(
+      (async () => {
+        const cached = await caches.match(req, { ignoreSearch: url.hostname === 'tessdata.projectnaptha.com' })
+        if (cached) return cached
+        try {
+          const fresh = await fetch(req)
+          if (fresh && (fresh.status === 200 || fresh.type === 'opaque')) {
+            const clone = fresh.clone()
+            caches
+              .open(CACHE)
+              .then((cache) => cache.put(req, clone))
+              .catch(() => {})
+          }
+          return fresh
+        } catch (err) {
+          return new Response('Offline', { status: 503, statusText: 'Offline' })
+        }
+      })()
+    )
+    return
+  }
+
   if (url.origin !== self.location.origin) return
   if (url.pathname.startsWith('/api/')) return
 
