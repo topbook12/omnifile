@@ -266,3 +266,51 @@ export const ENHANCE_PROMPT =
   'noise and compression artifacts, and restore natural colours and lighting. ' +
   'Keep the subject, composition, text and identity exactly the same. ' +
   'Output only the enhanced image.'
+
+/* -------------------------------- text chat -------------------------------- */
+/* Added by Task 2-f (PDF Copilot): single-shot / multi-turn text chat with    */
+/* the user's own Gemini vision/text model. Same BYOK model as above.          */
+
+export interface GeminiChatTurn {
+  role: 'user' | 'model'
+  text: string
+}
+
+export interface GeminiChatOptions {
+  prompt: string
+  /** Prior conversation turns (oldest first). */
+  history?: GeminiChatTurn[]
+  /** Optional system instruction shown to the model before the conversation. */
+  systemPrompt?: string
+  /** Defaults to the stored key. */
+  key?: string
+  /** Defaults to the stored vision/text model. */
+  model?: string
+}
+
+/** Single-shot text chat with the user's Gemini vision/text model. */
+export async function geminiChat(opts: GeminiChatOptions): Promise<string> {
+  const key = opts.key ?? getGeminiKey()
+  if (!key) throw new GeminiError('NO_KEY')
+  const model = opts.model || getGeminiModels().vision
+
+  const history = (opts.history ?? [])
+    .filter((turn) => turn.text.trim())
+    .map((turn) => ({ role: turn.role, parts: [{ text: turn.text }] }))
+
+  const body: Record<string, unknown> = {
+    contents: [...history, { role: 'user', parts: [{ text: opts.prompt }] }],
+  }
+  if (opts.systemPrompt) {
+    body.systemInstruction = { parts: [{ text: opts.systemPrompt }] }
+  }
+
+  const json = await callGemini(model, key, body)
+  const parts: any[] = json?.candidates?.[0]?.content?.parts ?? []
+  const text = parts
+    .map((p) => (typeof p.text === 'string' ? p.text : ''))
+    .join('\n')
+    .trim()
+  if (!text) throw new GeminiError('API', 'Empty response')
+  return text
+}

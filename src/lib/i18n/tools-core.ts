@@ -121,3 +121,24 @@ export const bn: Record<string, string> = {
   aiErrApi: 'Gemini API সমস্যা',
   aiErrNoImage: 'মডেল কোনো ছবি ফেরত দেয়নি',
 }
+
+// ── PDF suite subgroups (registry.tsx) ──
+Object.assign(en, {
+  toolsSubEdit: 'Core editing',
+  toolsSubPages: 'Page management',
+  toolsSubConvert: 'Convert & OCR',
+  toolsSubAnnotate: 'Annotate & review',
+  toolsSubForms: 'Forms & signatures',
+  toolsSubSecure: 'Security & privacy',
+  toolsSubOptimize: 'Optimize & AI',
+})
+
+Object.assign(bn, {
+  toolsSubEdit: 'মূল এডিটিং',
+  toolsSubPages: 'পেজ ম্যানেজমেন্ট',
+  toolsSubConvert: 'কনভার্শন ও OCR',
+  toolsSubAnnotate: 'অ্যানোটেশন ও রিভিউ',
+  toolsSubForms: 'ফর্ম ও সই',
+  toolsSubSecure: 'নিরাপত্তা ও প্রাইভেসি',
+  toolsSubOptimize: 'অপ্টিমাইজেশন ও AI',
+})

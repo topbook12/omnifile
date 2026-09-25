@@ -793,11 +793,27 @@ export function cropSignatureCanvas(canvas: HTMLCanvasElement): HTMLCanvasElemen
 export interface ProtectPdfOptions {
   userPassword: string
   ownerPassword: string
+  /** Cipher for the Standard security handler (Task 2-e). Default: 'AES-256'. */
+  algorithm?: 'AES-256' | 'AES-128'
+  /**
+   * Owner-password-gated permissions (Task 2-e). A field that is `true`
+   * GRANTS the action; omitted/false DENIES it (matches the fork's
+   * UserPermissions semantics — the flag bits are only OR-ed in for truthy
+   * values). `fillForms` maps onto the API's `fillingForms`.
+   */
+  permissions?: {
+    printing?: boolean
+    copying?: boolean
+    modifying?: boolean
+    annotating?: boolean
+    fillForms?: boolean
+  }
 }
 
 /**
- * Add AES-256 encryption. `ownerPassword` defaults to the user password when
- * empty. Loading an already-encrypted document throws pdfErrAlreadyProtected.
+ * Add AES-256 (or AES-128) encryption with optional reader permissions.
+ * `ownerPassword` defaults to the user password when empty. Loading an
+ * already-encrypted document throws pdfErrAlreadyProtected.
  */
 export async function protectPdf(file: File, opts: ProtectPdfOptions): Promise<Blob> {
   let doc: PDFDocument
@@ -808,10 +824,23 @@ export async function protectPdf(file: File, opts: ProtectPdfOptions): Promise<B
   }
   if (doc.isEncrypted) throw new ToolError('pdfErrAlreadyProtected')
 
+  // Only fields the fork's SecurityOptions/UserPermissions actually support
+  // are forwarded (verified in core/security/PDFSecurity.d.ts).
+  const permissions = opts.permissions
+    ? {
+        printing: opts.permissions.printing === true,
+        copying: opts.permissions.copying === true,
+        modifying: opts.permissions.modifying === true,
+        annotating: opts.permissions.annotating === true,
+        fillingForms: opts.permissions.fillForms === true,
+      }
+    : undefined
+
   doc.encrypt({
     userPassword: opts.userPassword,
     ownerPassword: opts.ownerPassword || opts.userPassword,
-    algorithm: 'AES-256',
+    algorithm: opts.algorithm ?? 'AES-256',
+    permissions,
   })
   const bytes = await doc.save()
   return new Blob([bytes], { type: 'application/pdf' })

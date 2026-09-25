@@ -12,6 +12,14 @@ import { en as toolsCoreEn, bn as toolsCoreBn } from './i18n/tools-core'
 import { en as toolsImageEn, bn as toolsImageBn } from './i18n/tools-image'
 import { en as toolsPdfEn, bn as toolsPdfBn } from './i18n/tools-pdf'
 import { en as toolsMediaEn, bn as toolsMediaBn } from './i18n/tools-media'
+import { en as toolsPdfEditEn, bn as toolsPdfEditBn } from './i18n/tools-pdf-edit'
+import { en as toolsPdfPagesEn, bn as toolsPdfPagesBn } from './i18n/tools-pdf-pages'
+import { en as toolsPdfConvertEn, bn as toolsPdfConvertBn } from './i18n/tools-pdf-convert'
+import { en as toolsPdfAnnotateEn, bn as toolsPdfAnnotateBn } from './i18n/tools-pdf-annotate'
+import { en as toolsPdfFormsEn, bn as toolsPdfFormsBn } from './i18n/tools-pdf-forms'
+import { en as toolsPdfSecurityEn, bn as toolsPdfSecurityBn } from './i18n/tools-pdf-security'
+import { en as toolsPdfCopilotEn, bn as toolsPdfCopilotBn } from './i18n/tools-pdf-copilot'
+import { en as toolsPdfCompareEn, bn as toolsPdfCompareBn } from './i18n/tools-pdf-compare'
 
 export type Lang = 'bn' | 'en'
 
@@ -528,8 +536,36 @@ const bn: Record<string, string> = {
 }
 
 const DICTS: Record<Lang, Record<string, string>> = {
-  en: { ...en, ...toolsCoreEn, ...toolsImageEn, ...toolsPdfEn, ...toolsMediaEn },
-  bn: { ...bn, ...toolsCoreBn, ...toolsImageBn, ...toolsPdfBn, ...toolsMediaBn },
+  en: {
+    ...en,
+    ...toolsCoreEn,
+    ...toolsImageEn,
+    ...toolsPdfEn,
+    ...toolsMediaEn,
+    ...toolsPdfEditEn,
+    ...toolsPdfPagesEn,
+    ...toolsPdfConvertEn,
+    ...toolsPdfAnnotateEn,
+    ...toolsPdfFormsEn,
+    ...toolsPdfSecurityEn,
+    ...toolsPdfCopilotEn,
+    ...toolsPdfCompareEn,
+  },
+  bn: {
+    ...bn,
+    ...toolsCoreBn,
+    ...toolsImageBn,
+    ...toolsPdfBn,
+    ...toolsMediaBn,
+    ...toolsPdfEditBn,
+    ...toolsPdfPagesBn,
+    ...toolsPdfConvertBn,
+    ...toolsPdfAnnotateBn,
+    ...toolsPdfFormsBn,
+    ...toolsPdfSecurityBn,
+    ...toolsPdfCopilotBn,
+    ...toolsPdfCompareBn,
+  },
 }
 
 interface I18nContextValue {

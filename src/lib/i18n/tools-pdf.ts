@@ -118,6 +118,17 @@ export const en: Record<string, string> = {
   pdfProtectNote: 'AES-256 encryption — the file never leaves your device.',
   pdfProtectDone: 'Password set',
   pdfUnlockDone: 'Password removed',
+
+  // ── Protect: strength + permissions (Task 2-e) ──
+  pdfProtectAlgo: 'Encryption strength',
+  pdfProtectAes256: 'AES-256 (strongest)',
+  pdfProtectAes128: 'AES-128',
+  pdfProtectPerms: 'Permissions (owner password applies)',
+  pdfPermPrinting: 'Allow printing',
+  pdfPermCopying: 'Allow copying text',
+  pdfPermModifying: 'Allow editing',
+  pdfPermAnnotating: 'Allow comments & annotations',
+  pdfPermFillForms: 'Allow filling forms',
 }
 
 export const bn: Record<string, string> = {
@@ -228,4 +239,15 @@ export const bn: Record<string, string> = {
   pdfProtectNote: 'AES-256 এনক্রিপশন — ফাইল কখনোই আপনার ডিভাইসের বাইরে যায় না।',
   pdfProtectDone: 'পাসওয়ার্ড সেট হয়েছে',
   pdfUnlockDone: 'পাসওয়ার্ড সরানো হয়েছে',
+
+  // ── লক: স্ট্রেংথ ও অনুমতি (Task 2-e) ──
+  pdfProtectAlgo: 'এনক্রিপশন স্ট্রেংথ',
+  pdfProtectAes256: 'AES-256 (সর্বোচ্চ নিরাপদ)',
+  pdfProtectAes128: 'AES-128',
+  pdfProtectPerms: 'অনুমতিসমূহ (ওনার পাসওয়ার্ড প্রযোজ্য)',
+  pdfPermPrinting: 'প্রিন্ট অনুমতি',
+  pdfPermCopying: 'টেক্সট কপি অনুমতি',
+  pdfPermModifying: 'এডিট অনুমতি',
+  pdfPermAnnotating: 'মন্তব্য ও অ্যানোটেশন অনুমতি',
+  pdfPermFillForms: 'ফর্ম পূরণ অনুমতি',
 }

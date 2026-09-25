@@ -12,13 +12,53 @@ import { ArrowLeft, KeyRound, ShieldCheck, Sparkles } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { AiSettingsDialog } from '@/components/tools/ai-settings'
-import { CATEGORY_ICONS, CATEGORY_LABEL_KEYS, TOOLS, ToolKindBadge, type ToolCategory } from '@/components/tools/registry'
+import {
+  CATEGORY_ICONS,
+  CATEGORY_LABEL_KEYS,
+  SUBGROUP_LABEL_KEYS,
+  SUBGROUP_ORDER,
+  TOOLS,
+  ToolKindBadge,
+  type ToolCategory,
+  type ToolSubgroup,
+} from '@/components/tools/registry'
 
 import { useAiStore } from '@/lib/ai-store'
 import { getGeminiKey } from '@/lib/gemini'
 import { useI18n } from '@/lib/i18n'
 
 const CATEGORY_ORDER: ToolCategory[] = ['image', 'pdf', 'media']
+
+/** One clickable tool card in the hub gallery. */
+function ToolCard({
+  tool,
+  onOpen,
+}: {
+  tool: (typeof TOOLS)[number]
+  onOpen: (id: string) => void
+}) {
+  const { t } = useI18n()
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(tool.id)}
+      className="group rounded-2xl border bg-card p-4 text-left transition-all hover:border-primary/50 hover:bg-accent/30 hover:shadow-md focus-visible:outline-2 focus-visible:outline-ring active:scale-[0.99]"
+    >
+      <div className="flex items-start gap-3">
+        <div className="rounded-xl bg-primary/10 p-2.5 text-primary transition-transform group-hover:scale-105 [&_svg]:h-5 [&_svg]:w-5">
+          <tool.icon aria-hidden />
+        </div>
+        <div className="min-w-0">
+          <p className="font-medium leading-snug">{t(tool.titleKey)}</p>
+          <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{t(tool.descKey)}</p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <ToolKindBadge ai={tool.ai} />
+          </div>
+        </div>
+      </div>
+    </button>
+  )
+}
 
 export function ToolsHub({ onBack }: { onBack: () => void }) {
   const { t } = useI18n()
@@ -90,6 +130,7 @@ export function ToolsHub({ onBack }: { onBack: () => void }) {
       {CATEGORY_ORDER.map((category) => {
         const Icon = CATEGORY_ICONS[category]
         const tools = TOOLS.filter((tool) => tool.category === category)
+        const hasSubgroups = tools.some((tool) => tool.subgroup)
         return (
           <section key={category} className="mt-7" aria-labelledby={`cat-${category}`}>
             <h2
@@ -100,31 +141,31 @@ export function ToolsHub({ onBack }: { onBack: () => void }) {
               {t(CATEGORY_LABEL_KEYS[category])}
               <span className="text-xs font-normal">({tools.length})</span>
             </h2>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {tools.map((tool) => (
-                <button
-                  key={tool.id}
-                  type="button"
-                  onClick={() => setActiveId(tool.id)}
-                  className="group rounded-2xl border bg-card p-4 text-left transition-all hover:border-primary/50 hover:bg-accent/30 hover:shadow-md focus-visible:outline-2 focus-visible:outline-ring active:scale-[0.99]"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="rounded-xl bg-primary/10 p-2.5 text-primary transition-transform group-hover:scale-105 [&_svg]:h-5 [&_svg]:w-5">
-                      <tool.icon aria-hidden />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-medium leading-snug">{t(tool.titleKey)}</p>
-                      <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                        {t(tool.descKey)}
-                      </p>
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        <ToolKindBadge ai={tool.ai} />
-                      </div>
+            {hasSubgroups ? (
+              /* PDF suite: render sub-sections in fixed order */
+              SUBGROUP_ORDER.map((subgroup: ToolSubgroup) => {
+                const groupTools = tools.filter((tool) => tool.subgroup === subgroup)
+                if (groupTools.length === 0) return null
+                return (
+                  <div key={subgroup} className="mt-4">
+                    <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground/80">
+                      {t(SUBGROUP_LABEL_KEYS[subgroup])}
+                    </h3>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {groupTools.map((tool) => (
+                        <ToolCard key={tool.id} tool={tool} onOpen={setActiveId} />
+                      ))}
                     </div>
                   </div>
-                </button>
-              ))}
-            </div>
+                )
+              })
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {tools.map((tool) => (
+                  <ToolCard key={tool.id} tool={tool} onOpen={setActiveId} />
+                ))}
+              </div>
+            )}
           </section>
         )
       })}

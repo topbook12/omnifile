@@ -21,6 +21,7 @@ import {
   ToolShell,
 } from '@/components/tools/shared'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
@@ -29,6 +30,22 @@ import type { BatchFailure, ToolResultFile } from '@/lib/tools/types'
 import { useI18n } from '@/lib/i18n'
 
 type ProtectMode = 'protect' | 'unlock'
+type ProtectAlgorithm = 'AES-256' | 'AES-128'
+type ProtectPerms = {
+  printing: boolean
+  copying: boolean
+  modifying: boolean
+  annotating: boolean
+  fillForms: boolean
+}
+
+const DEFAULT_PERMS: ProtectPerms = {
+  printing: true,
+  copying: true,
+  modifying: true,
+  annotating: true,
+  fillForms: true,
+}
 
 export default function PdfProtectTool() {
   const { t } = useI18n()
@@ -37,6 +54,8 @@ export default function PdfProtectTool() {
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [showPw, setShowPw] = useState(false)
+  const [algorithm, setAlgorithm] = useState<ProtectAlgorithm>('AES-256')
+  const [perms, setPerms] = useState<ProtectPerms>(DEFAULT_PERMS)
   const [busy, setBusy] = useState(false)
   const [results, setResults] = useState<ToolResultFile[]>([])
   const [failed, setFailed] = useState<BatchFailure[]>([])
@@ -75,7 +94,12 @@ export default function PdfProtectTool() {
     setFailed([])
     try {
       if (mode === 'protect') {
-        const blob = await protectPdf(file, { userPassword: pw, ownerPassword: pw })
+        const blob = await protectPdf(file, {
+          userPassword: pw,
+          ownerPassword: pw,
+          algorithm,
+          permissions: perms,
+        })
         setResults([{ name: pdfResultName.protected(file.name), blob }])
         toast.success(t('pdfProtectDone'))
       } else {
@@ -151,6 +175,62 @@ export default function PdfProtectTool() {
                 className="h-11"
               />
             </ToolField>
+
+            {/* Encryption strength (Task 2-e) */}
+            <ToolField label={t('pdfProtectAlgo')}>
+              <RadioGroup
+                value={algorithm}
+                onValueChange={(v) => setAlgorithm(v as ProtectAlgorithm)}
+                className="flex flex-col gap-2 sm:flex-row"
+              >
+                {(
+                  [
+                    ['AES-256', 'pdfProtectAes256'],
+                    ['AES-128', 'pdfProtectAes128'],
+                  ] as Array<[ProtectAlgorithm, string]>
+                ).map(([value, key]) => (
+                  <Label
+                    key={value}
+                    htmlFor={`pdf-protect-algo-${value}`}
+                    className="flex min-h-11 flex-1 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 font-normal has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5"
+                  >
+                    <RadioGroupItem id={`pdf-protect-algo-${value}`} value={value} />
+                    {t(key)}
+                  </Label>
+                ))}
+              </RadioGroup>
+            </ToolField>
+
+            {/* Reader permissions granted by the owner password (Task 2-e) */}
+            <div className="space-y-1.5">
+              <Label className="text-sm">{t('pdfProtectPerms')}</Label>
+              <div className="grid grid-cols-1 gap-x-4 gap-y-1 rounded-lg border bg-muted/30 p-3 sm:grid-cols-2">
+                {(
+                  [
+                    ['printing', 'pdfPermPrinting'],
+                    ['copying', 'pdfPermCopying'],
+                    ['modifying', 'pdfPermModifying'],
+                    ['annotating', 'pdfPermAnnotating'],
+                    ['fillForms', 'pdfPermFillForms'],
+                  ] as Array<[keyof ProtectPerms, string]>
+                ).map(([permKey, labelKey]) => (
+                  <Label
+                    key={permKey}
+                    htmlFor={`pdf-protect-perm-${permKey}`}
+                    className="flex min-h-9 cursor-pointer items-center gap-2.5 text-sm font-normal"
+                  >
+                    <Checkbox
+                      id={`pdf-protect-perm-${permKey}`}
+                      checked={perms[permKey]}
+                      onCheckedChange={(v) =>
+                        setPerms((prev) => ({ ...prev, [permKey]: v === true }))
+                      }
+                    />
+                    {t(labelKey)}
+                  </Label>
+                ))}
+              </div>
+            </div>
           </>
         ) : (
           <ToolField label={t('pdfProtectPassword')} hint={t('pdfProtectUnlockHint')}>
