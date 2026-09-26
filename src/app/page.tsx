@@ -373,7 +373,10 @@ export default function HomePage() {
       onDrop={openId || toolsOpen ? undefined : onDrop}
     >
       {/* ---------------- Header ---------------- */}
-      <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+      <header
+        className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
         <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-2 px-4">
           <button
             className="flex min-w-0 items-center gap-2 rounded-lg focus-visible:outline-2 focus-visible:outline-ring"
@@ -381,7 +384,8 @@ export default function HomePage() {
             aria-label={t('appName')}
           >
             <img src="/icons/icon-192.png" alt="" className="h-8 w-8 rounded-lg" />
-            <span className="truncate text-base font-bold tracking-tight">
+            {/* Brand text hides on ultra-narrow phones so the action buttons fit. */}
+            <span className="hidden min-[400px]:block min-[400px]:truncate min-[400px]:text-base min-[400px]:font-bold min-[400px]:tracking-tight">
               {t('appName')}
             </span>
           </button>
@@ -473,12 +477,12 @@ export default function HomePage() {
                   void pickFiles()
                 }
               }}
-              className="flex min-h-[190px] cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed bg-card p-8 text-center transition-all hover:border-primary/50 hover:bg-accent/40 focus-visible:outline-2 focus-visible:outline-ring active:scale-[0.99]"
+              className="flex min-h-[160px] cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed bg-card p-5 text-center transition-all hover:border-primary/50 hover:bg-accent/40 focus-visible:outline-2 focus-visible:outline-ring active:scale-[0.99] sm:min-h-[190px] sm:p-8"
             >
-              <div className="rounded-full bg-primary/10 p-4 transition-transform group-hover:scale-105">
-                <FolderOpen className="h-8 w-8 text-primary" aria-hidden />
+              <div className="rounded-full bg-primary/10 p-3 transition-transform group-hover:scale-105 sm:p-4">
+                <FolderOpen className="h-7 w-7 text-primary sm:h-8 sm:w-8" aria-hidden />
               </div>
-              <p className="mt-1 text-lg font-semibold">{t('dropHere')}</p>
+              <p className="mt-1 text-base font-semibold sm:text-lg">{t('dropHere')}</p>
               <p className="max-w-md text-sm text-muted-foreground">{t('dropHint')}</p>
               <p className="mt-1 text-xs text-muted-foreground/70">{t('supportedFormats')}</p>
             </div>
@@ -575,7 +579,10 @@ export default function HomePage() {
       </main>
 
       {/* ---------------- Footer (always visible at the bottom) ---------------- */}
-      <footer className="shrink-0 border-t bg-background/60 py-3">
+      <footer
+        className="shrink-0 border-t bg-background/60 py-3"
+        style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+      >
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-1.5 px-4 text-xs text-muted-foreground sm:flex-row">
           <p className="flex items-center gap-1.5 text-center sm:text-left">
             <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-emerald-500" aria-hidden />

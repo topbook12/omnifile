@@ -147,7 +147,8 @@ function AiKeyForm() {
                 </Badge>
               )}
             </Label>
-            <div className="flex gap-2">
+            {/* Stacks vertically on narrow phones so the input keeps usable width. */}
+            <div className="flex flex-col gap-2 sm:flex-row">
               <div className="relative flex-1">
                 <Input
                   id="gemini-key"
@@ -170,7 +171,12 @@ function AiKeyForm() {
                   {showKey ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
                 </button>
               </div>
-              <Button variant="outline" className="shrink-0" disabled={!key.trim() || test === 'testing'} onClick={() => void testKey()}>
+              <Button
+                variant="outline"
+                className="shrink-0 sm:w-24"
+                disabled={!key.trim() || test === 'testing'}
+                onClick={() => void testKey()}
+              >
                 {test === 'testing' ? (
                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                 ) : (

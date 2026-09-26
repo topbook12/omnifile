@@ -42,6 +42,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
+  viewportFit: "cover", // let env(safe-area-inset-*) work when installed as a PWA
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#0d9488" },
     { media: "(prefers-color-scheme: dark)", color: "#0f172a" },
