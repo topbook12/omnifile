@@ -43,73 +43,77 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* ------------------------------------------------------------------ */
+/* OmniFile premium palette — teal brand on refined neutrals           */
+/* ------------------------------------------------------------------ */
+
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --radius: 0.75rem;
+  --background: oklch(0.984 0.003 180);
+  --foreground: oklch(0.165 0.012 220);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.165 0.012 220);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.165 0.012 220);
+  --primary: oklch(0.55 0.102 184);
+  --primary-foreground: oklch(0.99 0.005 180);
+  --secondary: oklch(0.962 0.004 180);
+  --secondary-foreground: oklch(0.24 0.012 220);
+  --muted: oklch(0.962 0.004 180);
+  --muted-foreground: oklch(0.512 0.014 220);
+  --accent: oklch(0.955 0.009 180);
+  --accent-foreground: oklch(0.24 0.012 220);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: oklch(0.912 0.006 180);
+  --input: oklch(0.902 0.007 180);
+  --ring: oklch(0.55 0.102 184);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
   --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar-foreground: oklch(0.165 0.012 220);
+  --sidebar-primary: oklch(0.55 0.102 184);
+  --sidebar-primary-foreground: oklch(0.99 0.005 180);
+  --sidebar-accent: oklch(0.955 0.009 180);
+  --sidebar-accent-foreground: oklch(0.24 0.012 220);
+  --sidebar-border: oklch(0.912 0.006 180);
+  --sidebar-ring: oklch(0.55 0.102 184);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: oklch(0.155 0.008 220);
+  --foreground: oklch(0.972 0.004 180);
+  --card: oklch(0.198 0.01 220);
+  --card-foreground: oklch(0.972 0.004 180);
+  --popover: oklch(0.21 0.01 220);
+  --popover-foreground: oklch(0.972 0.004 180);
+  --primary: oklch(0.74 0.1 184);
+  --primary-foreground: oklch(0.16 0.02 200);
+  --secondary: oklch(0.262 0.011 220);
+  --secondary-foreground: oklch(0.972 0.004 180);
+  --muted: oklch(0.262 0.011 220);
+  --muted-foreground: oklch(0.695 0.012 220);
+  --accent: oklch(0.28 0.014 200);
+  --accent-foreground: oklch(0.972 0.004 180);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --border: oklch(1 0 0 / 9%);
+  --input: oklch(1 0 0 / 14%);
+  --ring: oklch(0.74 0.1 184);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar: oklch(0.198 0.01 220);
+  --sidebar-foreground: oklch(0.972 0.004 180);
+  --sidebar-primary: oklch(0.74 0.1 184);
+  --sidebar-primary-foreground: oklch(0.16 0.02 200);
+  --sidebar-accent: oklch(0.28 0.014 200);
+  --sidebar-accent-foreground: oklch(0.972 0.004 180);
+  --sidebar-border: oklch(1 0 0 / 9%);
+  --sidebar-ring: oklch(0.74 0.1 184);
 }
 
 @layer base {
@@ -120,10 +124,160 @@
     @apply bg-background text-foreground;
     font-family: var(--font-geist-sans), "Noto Sans Bengali", "Hind Siliguri",
       "SolaimanLipi", ui-sans-serif, system-ui, sans-serif;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--primary) 22%, transparent);
+  }
+  h1, h2, h3 {
+    letter-spacing: -0.02em;
   }
 }
 
-/* ---- Slim, theme-aware scrollbars (library lists, editors, viewers) ---- */
+/* ------------------------------------------------------------------ */
+/* Premium utilities                                                   */
+/* ------------------------------------------------------------------ */
+
+/* Layered, soft elevation for cards & hero */
+.shadow-premium {
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.04),
+    0 4px 12px -2px color-mix(in oklab, var(--foreground) 7%, transparent),
+    0 12px 32px -8px color-mix(in oklab, var(--primary) 10%, transparent);
+}
+.dark .shadow-premium {
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.4),
+    0 4px 12px -2px rgb(0 0 0 / 0.35),
+    0 12px 32px -8px color-mix(in oklab, var(--primary) 14%, transparent);
+}
+.shadow-premium-lg {
+  box-shadow:
+    0 2px 4px rgb(0 0 0 / 0.04),
+    0 8px 24px -4px color-mix(in oklab, var(--foreground) 9%, transparent),
+    0 24px 64px -16px color-mix(in oklab, var(--primary) 16%, transparent);
+}
+.dark .shadow-premium-lg {
+  box-shadow:
+    0 2px 4px rgb(0 0 0 / 0.45),
+    0 8px 24px -4px rgb(0 0 0 / 0.4),
+    0 24px 64px -16px color-mix(in oklab, var(--primary) 20%, transparent);
+}
+
+/* Gradient wordmark / display text */
+.text-gradient {
+  background: linear-gradient(
+    120deg,
+    color-mix(in oklab, var(--primary) 92%, white),
+    oklch(0.62 0.13 165),
+    color-mix(in oklab, var(--primary) 80%, black)
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.dark .text-gradient {
+  background: linear-gradient(
+    120deg,
+    color-mix(in oklab, var(--primary) 90%, white),
+    oklch(0.78 0.12 165),
+    color-mix(in oklab, var(--primary) 75%, white)
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Hairline gradient used under section titles / footer top edge */
+.hairline-gradient {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--primary) 45%, transparent),
+    transparent
+  );
+}
+
+/* Subtle engineering grid for the hero backdrop */
+.bg-grid {
+  background-image:
+    linear-gradient(to right, color-mix(in oklab, var(--foreground) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--foreground) 5%, transparent) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* Aurora glow blobs (hero) */
+.aurora-glow {
+  background:
+    radial-gradient(42% 60% at 22% 18%, color-mix(in oklab, var(--primary) 16%, transparent), transparent 70%),
+    radial-gradient(38% 56% at 82% 24%, oklch(0.72 0.14 165 / 0.14), transparent 70%),
+    radial-gradient(46% 60% at 55% 100%, color-mix(in oklab, var(--primary) 10%, transparent), transparent 72%);
+}
+.dark .aurora-glow {
+  background:
+    radial-gradient(42% 60% at 22% 18%, color-mix(in oklab, var(--primary) 22%, transparent), transparent 70%),
+    radial-gradient(38% 56% at 82% 24%, oklch(0.7 0.14 165 / 0.1), transparent 70%),
+    radial-gradient(46% 60% at 55% 100%, color-mix(in oklab, var(--primary) 14%, transparent), transparent 72%);
+}
+
+/* Soft page glow behind the hero region */
+.page-glow {
+  background:
+    radial-gradient(56% 42% at 50% 0%, color-mix(in oklab, var(--primary) 7%, transparent), transparent 75%);
+}
+.dark .page-glow {
+  background:
+    radial-gradient(56% 42% at 50% 0%, color-mix(in oklab, var(--primary) 11%, transparent), transparent 75%);
+}
+
+/* ------------------------------------------------------------------ */
+/* Motion (respects reduced-motion)                                    */
+/* ------------------------------------------------------------------ */
+
+@keyframes of-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-up {
+  animation: of-fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.animation-delay-75 { animation-delay: 75ms; }
+.animation-delay-150 { animation-delay: 150ms; }
+.animation-delay-225 { animation-delay: 225ms; }
+
+@keyframes of-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+.animate-float {
+  animation: of-float 4.5s ease-in-out infinite;
+}
+
+@keyframes of-shimmer {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(220%); }
+}
+.animate-shimmer {
+  animation: of-shimmer 2.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up,
+  .animate-float,
+  .animate-shimmer {
+    animation: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Slim, theme-aware scrollbars (library lists, editors, viewers)      */
+/* ------------------------------------------------------------------ */
 * {
   scrollbar-width: thin;
   scrollbar-color: color-mix(in oklab, var(--muted-foreground) 35%, transparent) transparent;

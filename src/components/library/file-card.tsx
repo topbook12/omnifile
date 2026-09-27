@@ -71,9 +71,10 @@ interface FileCardProps {
   onDownload: (file: StoredFileMeta) => void
   onDelete: (file: StoredFileMeta) => void
   onRename: (file: StoredFileMeta) => void
+  style?: React.CSSProperties
 }
 
-export function FileCard({ file, onOpen, onDownload, onDelete, onRename }: FileCardProps) {
+export function FileCard({ file, onOpen, onDownload, onDelete, onRename, style }: FileCardProps) {
   const { t, lang } = useI18n()
 
   return (
@@ -88,10 +89,11 @@ export function FileCard({ file, onOpen, onDownload, onDelete, onRename }: FileC
           onOpen(file)
         }
       }}
-      className="group flex min-h-[92px] cursor-pointer flex-row items-center gap-3 p-4 transition-all hover:border-primary/40 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring"
+      style={style}
+      className="group animate-fade-up flex min-h-[92px] cursor-pointer flex-row items-center gap-3 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-premium focus-visible:ring-2 focus-visible:ring-ring"
     >
       <div
-        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${ICON_BG[file.kind]}`}
+        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl shadow-sm ring-1 ring-inset ring-foreground/5 transition-transform duration-200 group-hover:scale-105 ${ICON_BG[file.kind]}`}
       >
         <KindIcon kind={file.kind} className="h-6 w-6" />
       </div>

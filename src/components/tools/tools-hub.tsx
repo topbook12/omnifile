@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useState } from 'react'
-import { ArrowLeft, KeyRound, ShieldCheck, Sparkles } from 'lucide-react'
+import { ArrowLeft, ArrowUpRight, KeyRound, ShieldCheck, Sparkles } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { AiSettingsDialog } from '@/components/tools/ai-settings'
@@ -32,9 +32,11 @@ const CATEGORY_ORDER: ToolCategory[] = ['image', 'pdf', 'media']
 /** One clickable tool card in the hub gallery. */
 function ToolCard({
   tool,
+  index,
   onOpen,
 }: {
   tool: (typeof TOOLS)[number]
+  index: number
   onOpen: (id: string) => void
 }) {
   const { t } = useI18n()
@@ -42,14 +44,19 @@ function ToolCard({
     <button
       type="button"
       onClick={() => onOpen(tool.id)}
-      className="group rounded-2xl border bg-card p-4 text-left transition-all hover:border-primary/50 hover:bg-accent/30 hover:shadow-md focus-visible:outline-2 focus-visible:outline-ring active:scale-[0.99]"
+      style={{ animationDelay: `${Math.min(index, 11) * 40}ms` }}
+      className="group animate-fade-up relative rounded-2xl border border-border/80 bg-card p-4 text-left shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-premium focus-visible:outline-2 focus-visible:outline-ring active:scale-[0.99]"
     >
+      <ArrowUpRight
+        aria-hidden
+        className="absolute right-3.5 top-3.5 h-4 w-4 text-muted-foreground/0 transition-all duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-primary"
+      />
       <div className="flex items-start gap-3">
-        <div className="rounded-xl bg-primary/10 p-2.5 text-primary transition-transform group-hover:scale-105 [&_svg]:h-5 [&_svg]:w-5">
+        <div className="rounded-xl bg-gradient-to-b from-primary/15 to-primary/6 p-2.5 text-primary ring-1 ring-inset ring-primary/15 transition-transform duration-200 group-hover:scale-105 [&_svg]:h-5 [&_svg]:w-5">
           <tool.icon aria-hidden />
         </div>
         <div className="min-w-0">
-          <p className="font-medium leading-snug">{t(tool.titleKey)}</p>
+          <p className="font-semibold leading-snug tracking-tight">{t(tool.titleKey)}</p>
           <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{t(tool.descKey)}</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
             <ToolKindBadge ai={tool.ai} />
@@ -92,18 +99,22 @@ export function ToolsHub({ onBack }: { onBack: () => void }) {
           <ArrowLeft className="h-4 w-4" aria-hidden />
           {t('toolBack')}
         </Button>
-        <Component />
+        <div className="animate-fade-up">
+          <Component />
+        </div>
       </div>
     )
   }
 
   /* ── Hub gallery ── */
   return (
-    <div className="mx-auto w-full max-w-6xl flex-1 overflow-y-auto px-4 pb-12 pt-6">
+    <div className="page-glow mx-auto w-full max-w-6xl flex-1 overflow-y-auto px-4 pb-12 pt-6">
       {/* Header row */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3 animate-fade-up">
         <div className="min-w-0">
-          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">{t('toolsHubTitle')}</h1>
+          <h1 className="text-xl font-extrabold tracking-tight sm:text-2xl">
+            {t('toolsHubTitle')}
+          </h1>
           <p className="mt-1 text-sm text-muted-foreground">{t('toolsHubDesc')}</p>
         </div>
         <Button
@@ -132,15 +143,22 @@ export function ToolsHub({ onBack }: { onBack: () => void }) {
         const tools = TOOLS.filter((tool) => tool.category === category)
         const hasSubgroups = tools.some((tool) => tool.subgroup)
         return (
-          <section key={category} className="mt-7" aria-labelledby={`cat-${category}`}>
-            <h2
-              id={`cat-${category}`}
-              className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground"
-            >
-              <Icon className="h-4 w-4" aria-hidden />
-              {t(CATEGORY_LABEL_KEYS[category])}
-              <span className="text-xs font-normal">({tools.length})</span>
-            </h2>
+          <section key={category} className="mt-8" aria-labelledby={`cat-${category}`}>
+            <div className="mb-3 flex items-center gap-3">
+              <h2
+                id={`cat-${category}`}
+                className="flex shrink-0 items-center gap-2 text-sm font-bold uppercase tracking-wider text-foreground/80"
+              >
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Icon className="h-4 w-4" aria-hidden />
+                </span>
+                {t(CATEGORY_LABEL_KEYS[category])}
+                <span className="rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                  {tools.length}
+                </span>
+              </h2>
+              <div aria-hidden className="hairline-gradient h-px flex-1 opacity-50" />
+            </div>
             {hasSubgroups ? (
               /* PDF suite: render sub-sections in fixed order */
               SUBGROUP_ORDER.map((subgroup: ToolSubgroup) => {
@@ -152,8 +170,8 @@ export function ToolsHub({ onBack }: { onBack: () => void }) {
                       {t(SUBGROUP_LABEL_KEYS[subgroup])}
                     </h3>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                      {groupTools.map((tool) => (
-                        <ToolCard key={tool.id} tool={tool} onOpen={setActiveId} />
+                      {groupTools.map((tool, i) => (
+                        <ToolCard key={tool.id} tool={tool} index={i} onOpen={setActiveId} />
                       ))}
                     </div>
                   </div>
@@ -161,8 +179,8 @@ export function ToolsHub({ onBack }: { onBack: () => void }) {
               })
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {tools.map((tool) => (
-                  <ToolCard key={tool.id} tool={tool} onOpen={setActiveId} />
+                {tools.map((tool, i) => (
+                  <ToolCard key={tool.id} tool={tool} index={i} onOpen={setActiveId} />
                 ))}
               </div>
             )}
@@ -171,8 +189,10 @@ export function ToolsHub({ onBack }: { onBack: () => void }) {
       })}
 
       {/* Privacy strip */}
-      <div className="mt-8 flex items-start gap-2 rounded-xl border bg-muted/30 p-3.5 text-xs text-muted-foreground">
-        <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" aria-hidden />
+      <div className="mt-9 flex items-start gap-2.5 rounded-2xl border border-border/70 bg-muted/40 p-4 text-xs text-muted-foreground shadow-xs animate-fade-up">
+        <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500/12">
+          <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-500" aria-hidden />
+        </span>
         <p>
           {t('localFirstNote')} {t('aiSettingsDesc')}
         </p>

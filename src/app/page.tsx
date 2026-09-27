@@ -11,6 +11,7 @@ import {
   Loader2,
   Search,
   ShieldCheck,
+  Sparkles,
   Wrench,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -35,6 +36,7 @@ import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -375,19 +377,21 @@ export default function HomePage() {
     >
       {/* ---------------- Header ---------------- */}
       <header
-        className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70"
+        className="sticky top-0 z-40 border-b border-border/70 bg-background/75 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60"
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
         <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-2 px-4">
           <button
-            className="flex min-w-0 items-center gap-2 rounded-lg focus-visible:outline-2 focus-visible:outline-ring"
+            className="group flex min-w-0 items-center gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-ring"
             onClick={requestClose}
             aria-label={t('appName')}
           >
-            <img src="/icons/icon-192.png" alt="" className="h-8 w-8 rounded-lg" />
+            <span className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl shadow-sm ring-1 ring-foreground/10 transition-transform duration-200 group-hover:scale-105">
+              <img src="/icons/icon-192.png" alt="" className="h-9 w-9" />
+            </span>
             {/* Brand text hides on ultra-narrow phones so the action buttons fit. */}
-            <span className="hidden min-[400px]:block min-[400px]:truncate min-[400px]:text-base min-[400px]:font-bold min-[400px]:tracking-tight">
-              {t('appName')}
+            <span className="hidden min-[400px]:block min-[400px]:truncate min-[400px]:text-[17px] min-[400px]:font-extrabold min-[400px]:tracking-tight">
+              Omni<span className="text-gradient">File</span>
             </span>
           </button>
 
@@ -478,14 +482,44 @@ export default function HomePage() {
                   void pickFiles()
                 }
               }}
-              className="flex min-h-[160px] cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed bg-card p-5 text-center transition-all hover:border-primary/50 hover:bg-accent/40 focus-visible:outline-2 focus-visible:outline-ring active:scale-[0.99] sm:min-h-[190px] sm:p-8"
+              className="group relative flex min-h-[210px] cursor-pointer flex-col items-center justify-center gap-2.5 overflow-hidden rounded-3xl border border-border/80 bg-card p-6 text-center shadow-premium transition-all duration-300 hover:border-primary/40 focus-visible:outline-2 focus-visible:outline-ring active:scale-[0.99] sm:min-h-[240px] sm:p-10 animate-fade-up"
             >
-              <div className="rounded-full bg-primary/10 p-3 transition-transform group-hover:scale-105 sm:p-4">
-                <FolderOpen className="h-7 w-7 text-primary sm:h-8 sm:w-8" aria-hidden />
+              {/* Aurora glow + engineering grid backdrop */}
+              <div aria-hidden className="aurora-glow pointer-events-none absolute inset-0 opacity-80" />
+              <div
+                aria-hidden
+                className="bg-grid pointer-events-none absolute inset-0 opacity-60 [mask-image:radial-gradient(ellipse_60%_60%_at_50%_45%,black,transparent)]"
+              />
+              {/* Top shimmer sweep on hover */}
+              <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-px overflow-hidden">
+                <div className="animate-shimmer h-px w-1/3 bg-gradient-to-r from-transparent via-primary/70 to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
               </div>
-              <p className="mt-1 text-base font-semibold sm:text-lg">{t('dropHere')}</p>
-              <p className="max-w-md text-sm text-muted-foreground">{t('dropHint')}</p>
-              <p className="mt-1 text-xs text-muted-foreground/70">{t('supportedFormats')}</p>
+
+              <div className="relative flex flex-col items-center">
+                <span className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/8 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-primary">
+                  <Sparkles className="h-3 w-3" aria-hidden />
+                  {t('tagline')}
+                </span>
+                <div className="animate-float rounded-2xl bg-gradient-to-b from-primary/18 to-primary/8 p-3.5 text-primary shadow-inner ring-1 ring-inset ring-primary/20 transition-transform duration-300 group-hover:scale-105 sm:p-4">
+                  <FolderOpen className="h-7 w-7 sm:h-8 sm:w-8" aria-hidden />
+                </div>
+                <p className="mt-3.5 text-lg font-bold tracking-tight sm:text-xl">{t('dropHere')}</p>
+                <p className="max-w-md text-sm text-muted-foreground">{t('dropHint')}</p>
+                <div className="mt-3 flex max-w-lg flex-wrap items-center justify-center gap-1.5">
+                  {t('supportedFormats')
+                    .split('•')
+                    .map((raw) => raw.trim())
+                    .filter(Boolean)
+                    .map((label) => (
+                      <span
+                        key={label}
+                        className="rounded-full border border-border/70 bg-background/70 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground backdrop-blur-sm transition-colors group-hover:border-primary/25 group-hover:text-foreground/80"
+                      >
+                        {label}
+                      </span>
+                    ))}
+                </div>
+              </div>
             </div>
 
             {/* Search + filters */}
@@ -515,7 +549,7 @@ export default function HomePage() {
                     aria-selected={filter === g}
                     variant={filter === g ? 'default' : 'secondary'}
                     size="sm"
-                    className="h-9 shrink-0 rounded-full px-3.5"
+                    className="h-9 shrink-0 rounded-full px-3.5 shadow-xs transition-all"
                     onClick={() => setFilter(g)}
                   >
                     {t(filterGroupLabelKey(g))}
@@ -534,7 +568,21 @@ export default function HomePage() {
                 )}
               </span>
               {estimate && estimate.quota > 0 && (
-                <span className="text-xs">
+                <span className="flex items-center gap-2 text-xs">
+                  <span
+                    className="hidden h-1.5 w-28 overflow-hidden rounded-full bg-muted sm:block"
+                    role="progressbar"
+                    aria-valuenow={Math.min(100, Math.round((estimate.usage / estimate.quota) * 100))}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                  >
+                    <span
+                      className="block h-full rounded-full bg-gradient-to-r from-primary to-emerald-500 transition-all duration-500"
+                      style={{
+                        width: `${Math.max(2, Math.min(100, (estimate.usage / estimate.quota) * 100))}%`,
+                      }}
+                    />
+                  </span>
                   {tf('storageUsed', {
                     used: formatBytes(estimate.usage),
                     quota: formatBytes(estimate.quota),
@@ -546,8 +594,10 @@ export default function HomePage() {
             {/* Grid */}
             {!loading && filtered.length === 0 ? (
               <div className="mt-10 flex flex-col items-center gap-2 py-10 text-center">
-                <FileQuestion className="h-12 w-12 text-muted-foreground/50" aria-hidden />
-                <p className="mt-2 text-base font-medium">
+                <div className="rounded-2xl bg-muted/60 p-4">
+                  <FileQuestion className="h-10 w-10 text-muted-foreground/60" aria-hidden />
+                </div>
+                <p className="mt-2 text-base font-semibold">
                   {files.length === 0 ? t('noFilesYet') : t('noResults')}
                 </p>
                 <p className="max-w-sm text-sm text-muted-foreground">
@@ -558,12 +608,13 @@ export default function HomePage() {
               <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {loading
                   ? Array.from({ length: 6 }).map((_, i) => (
-                      <Skeleton key={i} className="h-[92px] rounded-xl" />
+                      <Skeleton key={i} className="h-[92px] rounded-2xl" />
                     ))
-                  : filtered.map((f) => (
+                  : filtered.map((f, i) => (
                       <FileCard
                         key={f.id}
                         file={f}
+                        style={{ animationDelay: `${Math.min(i, 8) * 45}ms` }}
                         onOpen={handleOpen}
                         onDownload={(file) => void handleDownload(file)}
                         onDelete={setDeleteTarget}
@@ -581,9 +632,10 @@ export default function HomePage() {
 
       {/* ---------------- Footer (always visible at the bottom) ---------------- */}
       <footer
-        className="shrink-0 border-t bg-background/60 py-3"
+        className="relative shrink-0 bg-background/70 py-3 backdrop-blur-sm"
         style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
       >
+        <div aria-hidden className="hairline-gradient absolute inset-x-0 top-0 h-px opacity-60" />
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-1.5 px-4 text-xs text-muted-foreground sm:flex-row">
           <p className="flex items-center gap-1.5 text-center sm:text-left">
             <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-emerald-500" aria-hidden />
@@ -591,7 +643,7 @@ export default function HomePage() {
           </p>
           <p className="flex items-center gap-1.5">
             <span
-              className={`h-1.5 w-1.5 rounded-full ${online ? 'bg-emerald-500' : 'bg-amber-500'}`}
+              className={`h-1.5 w-1.5 rounded-full ${online ? 'bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/60' : 'bg-amber-500 shadow-[0_0_6px] shadow-amber-500/60'}`}
               aria-hidden
             />
             {online ? t('statusOnline') : t('offlineBadge')}
@@ -602,9 +654,11 @@ export default function HomePage() {
       {/* ---------------- Drag overlay ---------------- */}
       {dragActive && !openId && !toolsOpen && (
         <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm">
-          <div className="rounded-2xl border-4 border-dashed border-primary/60 bg-background/90 px-10 py-8 text-center shadow-xl">
-            <FolderOpen className="mx-auto h-10 w-10 text-primary" aria-hidden />
-            <p className="mt-3 text-lg font-semibold">{t('dropHere')}</p>
+          <div className="shadow-premium-lg rounded-3xl border-2 border-dashed border-primary/60 bg-background/95 px-12 py-10 text-center">
+            <div className="animate-float rounded-2xl bg-primary/10 p-3">
+              <FolderOpen className="mx-auto h-10 w-10 text-primary" aria-hidden />
+            </div>
+            <p className="mt-3 text-lg font-bold tracking-tight">{t('dropHere')}</p>
           </div>
         </div>
       )}
@@ -640,6 +694,7 @@ export default function HomePage() {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>{t('renameTitle')}</DialogTitle>
+            <DialogDescription className="sr-only">{t('renameTitle')}</DialogDescription>
           </DialogHeader>
           <Input
             value={renameValue}
