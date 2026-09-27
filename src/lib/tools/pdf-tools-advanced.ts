@@ -19,7 +19,7 @@
  * ---------------------------------------------------------------------------
  */
 
-import { PDFDocument } from '@cantoo/pdf-lib'
+import { PDFDocument, PDFInvalidObject, PDFName } from '@cantoo/pdf-lib'
 import { Document, HeadingLevel, Packer, Paragraph, TextRun } from 'docx'
 import * as pdfjsLib from 'pdfjs-dist'
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist'
@@ -847,8 +847,16 @@ export async function protectPdf(file: File, opts: ProtectPdfOptions): Promise<B
 }
 
 /**
- * Remove password protection: load with the password, save without security
- * (the fork strips the /Encrypt dict when a document is opened decrypted).
+ * Remove password protection: load with the password, save without security.
+ *
+ * The fork already deletes `trailerInfo.Encrypt` on a decrypted load, but two
+ * leftovers survive the round-trip and confuse strict viewers (they re-detect
+ * the document as "encrypted"):
+ *  1. the orphaned `/Filter /Standard` encryption dictionary object, and
+ *  2. `PDFInvalidObject`s — the old encrypted xref stream, re-serialised with
+ *     its original bytes including `/Encrypt 9 0 R`.
+ * Both are un-decryptable junk from the original file, so we strip them
+ * explicitly before saving.
  */
 export async function unlockPdf(file: File, password: string): Promise<Blob> {
   let doc: PDFDocument
@@ -858,6 +866,17 @@ export async function unlockPdf(file: File, password: string): Promise<Blob> {
     doc = await PDFDocument.load(new Uint8Array(await file.arrayBuffer()), { password })
   } catch (err) {
     throw loadErr(err, true)
+  }
+
+  // Strip encryption leftovers (see docstring above).
+  for (const [ref, obj] of doc.context.enumerateIndirectObjects()) {
+    const dict = 'dict' in obj ? obj.dict : obj
+    const filter = (dict as { get?: (k: PDFName) => { asString?: () => string } | undefined }).get?.(
+      PDFName.of('Filter')
+    )
+    if (filter?.asString?.() === '/Standard' || obj instanceof PDFInvalidObject) {
+      doc.context.delete(ref)
+    }
   }
 
   const bytes = await doc.save()

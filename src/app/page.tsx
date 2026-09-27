@@ -218,6 +218,7 @@ export default function HomePage() {
       setOpenId(null)
       setOpenBlob(null)
       setDirty(false)
+      setToolsOpen(false) // the brand button always returns to the library
     }
   }, [dirty])
 
